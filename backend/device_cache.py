@@ -1,4 +1,4 @@
-"""SQLite cache for OPC-UA device properties (ComponentName, HierarchicalLocation)."""
+"""SQLite cache for OPC-UA device properties and device list."""
 
 import sqlite3
 import time
@@ -19,12 +19,20 @@ def _get_db() -> sqlite3.Connection:
             last_updated REAL
         )
     """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS device_list (
+            serial TEXT PRIMARY KEY,
+            name TEXT,
+            node_id TEXT,
+            component_name TEXT,
+            last_updated REAL
+        )
+    """)
     conn.commit()
     return conn
 
 
 def get_cached(serial: str) -> dict | None:
-    """Get cached properties for a device serial number."""
     conn = _get_db()
     row = conn.execute(
         "SELECT component_name, hierarchical_location, device_class, last_updated FROM device_cache WHERE serial = ?",
@@ -44,7 +52,6 @@ def get_cached(serial: str) -> dict | None:
 def set_cached(serial: str, component_name: str | None = None,
                hierarchical_location: str | None = None,
                device_class: str | None = None):
-    """Update cache for a device."""
     conn = _get_db()
     conn.execute("""
         INSERT INTO device_cache (serial, component_name, hierarchical_location, device_class, last_updated)
@@ -60,19 +67,55 @@ def set_cached(serial: str, component_name: str | None = None,
 
 
 def get_all_cached() -> list[dict]:
-    """Get all cached entries."""
     conn = _get_db()
     rows = conn.execute(
         "SELECT serial, component_name, hierarchical_location, device_class, last_updated FROM device_cache ORDER BY serial"
     ).fetchall()
     conn.close()
     return [
-        {
-            "serial": r[0],
-            "componentName": r[1],
-            "hierarchicalLocation": r[2],
-            "deviceClass": r[3],
-            "lastUpdated": r[4],
-        }
+        {"serial": r[0], "componentName": r[1], "hierarchicalLocation": r[2], "deviceClass": r[3], "lastUpdated": r[4]}
         for r in rows
     ]
+
+
+# ── Device list cache ──────────────────────────────────────────────
+
+def get_cached_devices() -> list[dict]:
+    """Get cached device list including component names."""
+    conn = _get_db()
+    rows = conn.execute(
+        "SELECT serial, name, node_id, component_name, last_updated FROM device_list ORDER BY serial"
+    ).fetchall()
+    conn.close()
+    return [
+        {"name": r[1], "nodeId": r[2], "componentName": r[3] or "", "lastUpdated": r[4]}
+        for r in rows
+    ]
+
+
+def set_cached_devices(devices: list[dict]):
+    """Replace the cached device list, preserving existing component_names."""
+    conn = _get_db()
+    now = time.time()
+    # Get existing component_names to preserve them
+    existing = {r[0]: r[1] for r in conn.execute("SELECT serial, component_name FROM device_list").fetchall()}
+    conn.execute("DELETE FROM device_list")
+    conn.executemany(
+        "INSERT INTO device_list (serial, name, node_id, component_name, last_updated) VALUES (?, ?, ?, ?, ?)",
+        [(d.get("nodeId", ""), d.get("name", ""), d.get("nodeId", ""),
+          d.get("componentName") or existing.get(d.get("nodeId", ""), ""), now)
+         for d in devices]
+    )
+    conn.commit()
+    conn.close()
+
+
+def set_component_name(serial: str, component_name: str):
+    """Update the component name for a cached device."""
+    conn = _get_db()
+    conn.execute(
+        "UPDATE device_list SET component_name = ?, last_updated = ? WHERE serial = ?",
+        (component_name, time.time(), serial)
+    )
+    conn.commit()
+    conn.close()

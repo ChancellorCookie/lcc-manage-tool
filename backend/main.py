@@ -1,4 +1,7 @@
-"""FastAPI backend — LCC API proxy with OAuth2 authentication."""
+"""FastAPI backend — LCC API proxy with OAuth2 authentication + Incident Notifier."""
+
+import asyncio
+import logging
 
 from fastapi import FastAPI, HTTPException, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,8 +11,11 @@ import httpx
 from backend import lcc_client as lcc
 from backend import opcua_client as opcua
 from backend import device_cache as dc
+from backend.notifier.api import router as notifier_router
 
-app = FastAPI(title="LCC Manage Tool")
+log = logging.getLogger("lcc_tools.main")
+
+app = FastAPI(title="LCC Tools")
 
 app.add_middleware(
     CORSMiddleware,
@@ -18,6 +24,28 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ── Notifier API ──────────────────────────────────────────────────
+
+app.include_router(notifier_router)
+
+
+# ── Notifier background task ───────────────────────────────────────
+
+@app.on_event("startup")
+async def start_notifier():
+    """Launch the incident notifier poll loop as a background task."""
+    try:
+        from backend.notifier.service import Service
+
+        config_path = "config/config.yaml"
+        service = Service(config_path)
+        asyncio.create_task(service.run())
+        log.info("Incident Notifier background task started")
+    except Exception:
+        log.exception("Failed to start Incident Notifier (non-fatal)")
+
+
+# ── Error handler ─────────────────────────────────────────────────
 
 @app.exception_handler(httpx.HTTPStatusError)
 async def http_error_handler(request: Request, exc: httpx.HTTPStatusError):
@@ -34,8 +62,7 @@ async def health():
     return {"status": "ok", "mode": "live"}
 
 
-# ── Rooms ───────────────────────────────────────────────────────
-# Room IDs contain slashes (e.g. IEU/R406), so we use query params for single-room ops.
+# ── Rooms ─────────────────────────────────────────────────────────
 
 @app.get("/api/rooms")
 async def list_rooms():
@@ -62,7 +89,7 @@ async def patch_room(roomId: str = Query(...), body: dict = None):
     return await lcc.patch_room_meta(roomId, body or {})
 
 
-# ── Discovery / Servers ─────────────────────────────────────────
+# ── Discovery / Servers ───────────────────────────────────────────
 
 @app.get("/api/discovery/servers")
 async def list_servers():
@@ -94,7 +121,50 @@ async def delete_credentials(server_id: str):
     return await lcc.delete_credentials(server_id)
 
 
-# ── OPC UA Browser ──────────────────────────────────────────────
+# ── OPC UA Device Cache ─────────────────────────────────────────
+
+@app.get("/api/opcua/devices/cached")
+async def get_cached_devices():
+    """Return cached device list (instant load)."""
+    return {"devices": dc.get_cached_devices()}
+
+
+@app.post("/api/opcua/devices/refresh")
+async def refresh_device_cache():
+    """Fetch fresh device list from OPC UA and cache it."""
+    try:
+        data = await opcua.browse_node("ns=3;i=5001")
+        seen = set()
+        devices = []
+        for dev in (data.get("children") or []):
+            if dev.get("name") in ("DeviceFeatures", "HA Configuration"):
+                continue
+            if dev["name"] not in seen:
+                seen.add(dev["name"])
+                devices.append({"name": dev["name"], "nodeId": dev["nodeId"]})
+        dc.set_cached_devices(devices)
+        return {"devices": devices, "cached": True, "count": len(devices)}
+    except Exception as e:
+        # Fall back to cache
+        cached = dc.get_cached_devices()
+        return {"devices": cached, "cached": True, "count": len(cached), "stale": True, "error": str(e)[:100]}
+
+
+# ── OPC UA Status ──────────────────────────────────────────────
+
+@app.get("/api/opcua/status")
+async def opcua_status():
+    try:
+        client = await opcua.get_client()
+        # Quick connectivity test
+        node = client.get_objects_node()
+        await node.get_children()
+        return {"connected": True, "url": opcua.OPC_URL}
+    except Exception as e:
+        return {"connected": False, "url": opcua.OPC_URL, "error": str(e)[:100]}
+
+
+# ── OPC UA Browser ────────────────────────────────────────────────
 
 @app.get("/api/opcua/browse")
 async def browse_opcua(nodeId: str | None = None):

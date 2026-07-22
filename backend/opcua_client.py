@@ -11,7 +11,7 @@ _lock = asyncio.Lock()
 
 
 async def get_client() -> Client:
-    """Get or create a connected OPC-UA client (singleton)."""
+    """Get or create a connected OPC-UA client (singleton, auto-reconnect)."""
     global _client
     async with _lock:
         if _client is None:
@@ -19,8 +19,13 @@ async def get_client() -> Client:
             await _client.connect()
         else:
             try:
-                _client.get_objects_node()
+                # Test connection by actually reading something
+                await _client.get_objects_node().get_children()
             except Exception:
+                try:
+                    await _client.disconnect()
+                except Exception:
+                    pass
                 _client = Client(url=OPC_URL, timeout=30)
                 await _client.connect()
     return _client

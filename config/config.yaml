@@ -1,0 +1,98 @@
+poll:
+  url: https://10.89.11.52/api/v2/incidents
+  method: GET
+  interval_seconds: 30
+  timeout_seconds: 10
+  verify_tls: false
+  query_params:
+    active: 'true'
+  incident_url_template: https://10.89.11.52/error-history
+  auth:
+    type: oauth2
+    token_url: https://lcc.ieu.local/oauth/token
+    client_id: ''
+    client_secret: ''
+    scope: openid audience:server:client_id:lcc-api
+    audience: ''
+  pagination:
+    page_size: 100
+    offset_param: offset
+    limit_param: limit
+    total_path: meta.items.total
+  response:
+    items_path: data
+    fields:
+      id: incidentId
+      title: message
+      severity: severity
+      source: context
+      description: message
+      timestamp: createdAt
+      status: status
+      url: ''
+      max_severity: maxSeverity
+      help: help
+      comment: comment
+      acknowledged: acknowledged
+      confirmed: confirmed
+      reported: reported
+      flap_count: flapCount
+      strict_audited: strictAudited
+      active: active
+      event_id: eventId
+      high_high_limit: highHighLimit
+      high_limit: highLimit
+      low_limit: lowLimit
+      low_low_limit: lowLowLimit
+  severities:
+  - error
+  - alert
+  - warning
+  report_incident:
+    enabled: true
+    url_template: '{base_url}/lads/alarms/{incident_id}/report'
+  rooms:
+    enabled: true
+    url: https://10.89.11.52/api/v2/rooms
+    items_path: data
+    cache_seconds: 300
+escalation:
+  notify_on_resolved: false
+  immediate:
+  - error
+  - alert
+  digest_interval_minutes: 60
+  stages:
+    error:
+    - after_minutes: 0
+      channels:
+      - email_lab
+    alert:
+    - after_minutes: 0
+      channels:
+      - email_lab
+    warning:
+    - after_minutes: 0
+      channels:
+      - email_lab
+channels:
+  email_lab:
+    type: email
+    smtp_host: host265.alfahosting-server.de
+    smtp_port: 465
+    use_ssl: true
+    use_starttls: false
+    username: ''
+    password: ''
+    from_addr: laboperator@iuta.de
+    to_addrs:
+    - laboperator@iuta.de
+state:
+  db_path: ./data/state.db
+logging:
+  level: INFO
+webui:
+  enabled: true
+  host: 0.0.0.0
+  port: 5080
+templates: {}

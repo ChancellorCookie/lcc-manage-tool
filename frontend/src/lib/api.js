@@ -30,6 +30,14 @@ export const api = {
     putCredentials: (id, data) => request(`/discovery/servers/${encodeURIComponent(id)}/credentials`, { method: 'PUT', body: JSON.stringify(data) }),
     deleteCredentials: (id) => request(`/discovery/servers/${encodeURIComponent(id)}/credentials`, { method: 'DELETE' }),
   },
+  notifier: {
+    status: () => request('/notifier/status'),
+    incidents: () => request('/notifier/incidents'),
+    config: () => request('/notifier/config'),
+    saveConfig: (data) => request('/notifier/config', { method: 'POST', body: JSON.stringify(data) }),
+    templates: () => request('/notifier/templates'),
+    saveTemplates: (data) => request('/notifier/templates', { method: 'POST', body: JSON.stringify(data) }),
+  },
 }
 
 export function unwrap(resp) {

@@ -64,6 +64,11 @@ input:focus, select:focus, textarea:focus {
   border-color: #60a5fa;
   box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.2);
 }
+/* Allow inline-sized inputs */
+input.w-auto, select.w-auto,
+input[class*="w-40"], input[class*="w-48"] {
+  width: auto;
+}
 label {
   display: block;
   font-size: 0.8rem;
