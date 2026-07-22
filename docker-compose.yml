@@ -1,0 +1,18 @@
+services:
+  backend:
+    build: ./backend
+    container_name: lcc-backend
+    restart: unless-stopped
+    environment:
+      - LCC_MODE=mock
+    ports:
+      - "8701:8701"
+
+  frontend:
+    build: ./frontend
+    container_name: lcc-frontend
+    restart: unless-stopped
+    ports:
+      - "8999:80"
+    depends_on:
+      - backend
