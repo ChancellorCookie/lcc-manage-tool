@@ -24,10 +24,9 @@
     { label: '7d',  hours: 168 },
     { label: '30d', hours: 720 },
   ]
-  let selectedPreset = $state(3) // 24h
+  let selectedPreset = $state(5) // 30d
   let customStart = $state('')
   let customEnd = $state('')
-  let numPoints = $state(500)
 
   // ── Chart ──────────────────────────────────────────────────────
   let canvasEl = $state(null)
@@ -77,11 +76,16 @@
     try {
       const r = await fetch(`/api/lads/devices/${encodeURIComponent(devId)}/units`)
       units = await r.json()
+      // Auto-select first unit
+      if (units.length > 0) {
+        const firstUnit = units[0].browseName
+        selectedUnit = firstUnit
+        await loadFunctions(firstUnit)
+      }
     } catch(e) { error = e.message }
   }
 
-  async function selectUnit(unitId) {
-    selectedUnit = unitId
+  async function loadFunctions(unitId) {
     selectedFunction = ''
     functions = []
     try {
@@ -91,6 +95,15 @@
         const t = (f.type || '').toLowerCase()
         return t.includes('sensor') || t.includes('analog')
       })
+      // Auto-select Ambient Temperature if available, else first
+      const temp = functions.find(f => f.displayName?.toLowerCase().includes('temperature') || f.browseName?.toLowerCase().includes('temperature'))
+      if (temp) {
+        selectedFunction = temp.browseName
+        await fetchHistory()
+      } else if (functions.length > 0) {
+        selectedFunction = functions[0].browseName
+        await fetchHistory()
+      }
     } catch(e) { error = e.message }
   }
 
@@ -100,10 +113,18 @@
   }
 
   function getTimeRange() {
-    const end = customEnd ? new Date(customEnd) : new Date()
-    let start
+    const now = new Date()
+    let start, end
+
+    if (customEnd) {
+      // Date-only input: set end to 23:59:59
+      end = new Date(customEnd + 'T23:59:59')
+    } else {
+      end = now
+    }
     if (customStart) {
-      start = new Date(customStart)
+      // Date-only input: set start to 00:00:00
+      start = new Date(customStart + 'T00:00:00')
     } else {
       const preset = PRESETS[selectedPreset]
       start = new Date(end.getTime() - preset.hours * 3600_000)
@@ -118,7 +139,8 @@
     error = ''
     try {
       const { start, end } = getTimeRange()
-      const params = new URLSearchParams({ startTime: start, endTime: end, numValuesPerNode: String(numPoints) })
+      // No numValuesPerNode limit — get all values in range
+      const params = new URLSearchParams({ startTime: start, endTime: end })
       const url = `/api/lads/devices/${encodeURIComponent(selectedDevice)}/units/${encodeURIComponent(selectedUnit)}/functions/${encodeURIComponent(selectedFunction)}/history?${params}`
       const r = await fetch(url)
       if (!r.ok) { error = `Server-Fehler (HTTP ${r.status})`; historyLoading = false; return }
@@ -149,8 +171,24 @@
     if (chart) chart.destroy()
 
     const { default: Chart } = await import('chart.js/auto')
-    await import('chartjs-adapter-date-fns')  // side-effect import, no register needed
     const ctx = canvasEl.getContext('2d')
+
+    // Manual date formatting (no dependency on tree-shaken date-fns import)
+    function fmtDate(ts, pattern) {
+      const d = new Date(ts)
+      const dd = String(d.getDate()).padStart(2,'0')
+      const mm = String(d.getMonth()+1).padStart(2,'0')
+      const yyyy = d.getFullYear()
+      const HH = String(d.getHours()).padStart(2,'0')
+      const Min = String(d.getMinutes()).padStart(2,'0')
+      if (pattern === 'day') return `${dd}.${mm}.`
+      if (pattern === 'hour') return `${dd}.${mm}. ${HH}:${Min}`
+      return `${HH}:${Min}`
+    }
+
+    // Determine time unit based on range
+    const rangeMs = points.length > 1 ? points[points.length-1].x - points[0].x : 0
+    const fmt = rangeMs > 7*86400000 ? 'dd.MM.' : rangeMs > 86400000 ? 'dd.MM. HH:mm' : 'HH:mm'
 
     // Grid color for dark theme
     Chart.defaults.color = '#64748b'
@@ -179,14 +217,20 @@
           tooltip: {
             callbacks: {
               label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(3)}`,
+              title: (ctx) => {
+                const d = new Date(ctx[0].parsed.x)
+                return `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`
+              },
             }
           }
         },
         scales: {
           x: {
-            type: 'time',
-            time: { tooltipFormat: 'dd.MM.yyyy HH:mm:ss' },
-            ticks: { maxTicksLimit: 15, maxRotation: 0 },
+            type: 'linear',
+            ticks: {
+              maxTicksLimit: 12,
+              callback: (val) => fmtDate(val, fmt),
+            },
             grid: { display: false }
           },
           y: {
@@ -219,7 +263,7 @@
 
   <!-- Controls -->
   <div class="card mb-6">
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
       <!-- Device -->
       <div>
         <label class="text-xs text-slate-500 mb-1">Gerät</label>
@@ -231,32 +275,15 @@
         </select>
       </div>
 
-      <!-- Unit -->
-      <div>
-        <label class="text-xs text-slate-500 mb-1">Functional Unit</label>
-        <select bind:value={selectedUnit} onchange={(e) => selectUnit(e.target.value)} disabled={!units.length}>
-          <option value="">-- Unit wählen --</option>
-          {#each units as u}
-            <option value={u.browseName}>{u.displayName || u.browseName}</option>
-          {/each}
-        </select>
-      </div>
-
       <!-- Function -->
       <div>
         <label class="text-xs text-slate-500 mb-1">Sensor</label>
-        <select bind:value={selectedFunction} onchange={(e) => selectFunction(e.target.value)} disabled={!functions.length}>
+        <select bind:value={selectedFunction} onchange={(e) => { selectedFunction = e.target.value; fetchHistory() }} disabled={!functions.length}>
           <option value="">-- Sensor wählen --</option>
           {#each functions as f}
             <option value={f.browseName}>{f.displayName || f.browseName}</option>
           {/each}
         </select>
-      </div>
-
-      <!-- Points -->
-      <div>
-        <label class="text-xs text-slate-500 mb-1">Max. Datenpunkte</label>
-        <input type="number" bind:value={numPoints} min="10" max="5000" />
       </div>
     </div>
 
@@ -270,9 +297,9 @@
         >{p.label}</button>
       {/each}
       <span class="text-xs text-slate-600 mx-1">oder</span>
-      <input type="datetime-local" class="!w-auto text-xs" bind:value={customStart} onchange={() => { selectedPreset = -1; if(selectedFunction) fetchHistory() }} />
+      <input type="date" class="!w-auto text-xs" bind:value={customStart} onchange={(e) => { customStart = e.target.value; selectedPreset = -1; if(selectedFunction) fetchHistory() }} />
       <span class="text-xs text-slate-500">–</span>
-      <input type="datetime-local" class="!w-auto text-xs" bind:value={customEnd} onchange={() => { if(selectedFunction) fetchHistory() }} />
+      <input type="date" class="!w-auto text-xs" bind:value={customEnd} onchange={(e) => { customEnd = e.target.value; if(selectedFunction) fetchHistory() }} />
     </div>
   </div>
 

@@ -191,7 +191,7 @@ async def lads_functions(device_id: str, unit_id: str):
 async def lads_history(
     device_id: str, unit_id: str, function_id: str,
     startTime: str, endTime: str = None,
-    numValuesPerNode: int = 1000,
+    numValuesPerNode: int = 50000,
 ):
     """Get historical sensor values."""
     params = {"startTime": startTime, "numValuesPerNode": numValuesPerNode}
