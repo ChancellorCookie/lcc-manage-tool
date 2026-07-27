@@ -150,6 +150,59 @@ async def refresh_device_cache():
         return {"devices": cached, "cached": True, "count": len(cached), "stale": True, "error": str(e)[:100]}
 
 
+# ── Sensor History (LADS API) ───────────────────────────────────
+
+from backend.auth import get_token as _get_token
+from backend.lcc_client import LCC_BASE as _LCC_BASE
+import httpx as _httpx
+
+_LADS_HEADERS = {"Host": "lcc.ieu.local"}
+
+async def _lads_get(path: str, **params):
+    token = await _get_token()
+    headers = {**_LADS_HEADERS, "Authorization": f"Bearer {token}"}
+    async with _httpx.AsyncClient(verify=False) as client:
+        r = await client.get(f"{_LCC_BASE}{path}", headers=headers, params=params, timeout=30)
+        return r.json()
+
+
+@app.get("/api/lads/devices")
+async def lads_devices(location: str = None):
+    """List LADS devices, optionally filtered by location."""
+    params = {}
+    if location:
+        params["hierarchicalLocation"] = location
+    return await _lads_get("/lads/DeviceSet", **params)
+
+
+@app.get("/api/lads/devices/{device_id}/units")
+async def lads_functional_units(device_id: str):
+    """List functional units for a device."""
+    return await _lads_get(f"/lads/DeviceSet/{device_id}/FunctionalUnitSet")
+
+
+@app.get("/api/lads/devices/{device_id}/units/{unit_id}/functions")
+async def lads_functions(device_id: str, unit_id: str):
+    """List functions for a functional unit."""
+    return await _lads_get(f"/lads/DeviceSet/{device_id}/FunctionalUnitSet/{unit_id}/FunctionSet")
+
+
+@app.get("/api/lads/devices/{device_id}/units/{unit_id}/functions/{function_id}/history")
+async def lads_history(
+    device_id: str, unit_id: str, function_id: str,
+    startTime: str, endTime: str = None,
+    numValuesPerNode: int = 1000,
+):
+    """Get historical sensor values."""
+    params = {"startTime": startTime, "numValuesPerNode": numValuesPerNode}
+    if endTime:
+        params["endTime"] = endTime
+    return await _lads_get(
+        f"/lads/history/{device_id}/FunctionalUnitSet/{unit_id}/FunctionSet/{function_id}/values",
+        **params
+    )
+
+
 # ── OPC UA Status ──────────────────────────────────────────────
 
 @app.get("/api/opcua/status")

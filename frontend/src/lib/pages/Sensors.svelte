@@ -202,6 +202,18 @@
           <h3 class="text-xs font-semibold mb-0.5 truncate">{selected.componentName || selected.name}</h3>
           <div class="text-[0.55rem] text-slate-600 font-mono mb-2">{selected.nodeId}</div>
 
+          <!-- History button -->
+          <button
+            class="w-full mb-3 py-1.5 rounded-lg border border-blue-500/30 text-xs text-blue-400 hover:bg-blue-500/10 hover:border-blue-500/60 transition-colors flex items-center justify-center gap-2"
+            onclick={() => {
+              const name = selected.name || ''
+              window.location.hash = '#/sensorhistory?device=' + encodeURIComponent(name)
+            }}
+          >
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+            📊 History
+          </button>
+
           {#if propsLoading}
             <div class="text-slate-500 text-center py-6 text-[0.6rem]">Loading...</div>
           {:else if props.length === 0}

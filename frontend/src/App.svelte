@@ -2,6 +2,7 @@
   import Dashboard from './lib/pages/Dashboard.svelte'
   import Infrastructure from './lib/pages/Infrastructure.svelte'
   import Sensors from './lib/pages/Sensors.svelte'
+  import SensorHistory from './lib/pages/SensorHistory.svelte'
   import Incidents from './lib/pages/Incidents.svelte'
   import Icon from './lib/Icon.svelte'
   import { onMount } from 'svelte'
@@ -34,17 +35,31 @@
       page = parts[0]
       if (parts[1]) incidentsTab = parts[1]
     }
-    // Handle browser back/forward
+    // Handle browser back/forward AND manual hash changes
+    function syncFromHash() {
+      const raw = window.location.hash.replace('#/', '')
+      const [p, qs] = raw.split('?')
+      if (p && p !== 'dashboard') {
+        page = p
+        if (p === 'incidents' && qs) {
+          const params = new URLSearchParams(qs)
+          incidentsTab = params.get('tab') || 'incidents'
+        }
+      } else {
+        page = 'dashboard'
+      }
+    }
+
     window.addEventListener('popstate', (e) => {
       if (e.state?.page) {
         page = e.state.page
         if (e.state.tab) incidentsTab = e.state.tab
       } else {
-        // No state = dashboard (initial page or hashless URL)
-        page = 'dashboard'
-        incidentsTab = 'incidents'
+        syncFromHash()
       }
     })
+
+    window.addEventListener('hashchange', () => syncFromHash())
 
     // Push initial state for dashboard so back button always works
     if (!hash) {
@@ -63,6 +78,7 @@
     { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
     { id: 'infrastructure', label: 'Infrastructure', icon: 'rooms' },
     { id: 'sensors', label: 'Sensors', icon: 'sensors' },
+    { id: 'sensorhistory', label: 'History', icon: 'gateways' },
     { id: 'incidents', label: 'Incidents', icon: 'incidents' },
   ]
 </script>
@@ -141,6 +157,8 @@
         <Infrastructure {showToast} />
       {:else if page === 'sensors'}
         <Sensors />
+      {:else if page === 'sensorhistory'}
+        <SensorHistory />
       {:else if page === 'incidents'}
         <Incidents initialTab={incidentsTab} />
       {/if}

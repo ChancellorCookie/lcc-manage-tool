@@ -14,5 +14,10 @@
     "svelte": "^5.56.4",
     "tailwindcss": "^4.3.3",
     "vite": "^8.1.1"
+  },
+  "dependencies": {
+    "chart.js": "^4.5.1",
+    "chartjs-adapter-date-fns": "^3.0.0",
+    "date-fns": "^4.4.0"
   }
 }
