@@ -18,6 +18,7 @@
   let filterBlacklist = $state('')
   let filterWhitelist = $state('')
   let filterPollTimer = null
+  let editingFilter = $state(false) // pause poll while user edits
 
   onMount(() => loadServers())
   onDestroy(() => { if (filterPollTimer) clearInterval(filterPollTimer) })
@@ -98,6 +99,7 @@
   }
 
   async function refreshFilters() {
+    if (editingFilter) return  // don't overwrite while user is typing
     try {
       const r = await fetch('/api/mqtt/messages?limit=50')
       const md = await r.json()
@@ -115,6 +117,7 @@
         body: JSON.stringify({ topic, payload: value })
       })
       showToast?.('Filter saved', 'success')
+      editingFilter = false
     } catch(e) { showToast?.(e.message, 'error') }
   }
 
@@ -191,6 +194,7 @@
                 <textarea
                   class="font-mono text-xs h-32 w-full"
                   bind:value={filterBlacklist}
+                  onfocus={() => editingFilter = true}
                   placeholder="&quot;AA:BB:CC:DD:EE:FF&quot;,&quot;11:22:33:44:55:66&quot;"
                 ></textarea>
                 <div class="text-[0.6rem] text-slate-600 mt-1">{parseMacs(filterBlacklist).length} MACs</div>
@@ -204,6 +208,7 @@
                 <textarea
                   class="font-mono text-xs h-32 w-full"
                   bind:value={filterWhitelist}
+                  onfocus={() => editingFilter = true}
                   placeholder="&quot;AA:BB:CC:DD:EE:FF&quot;"
                 ></textarea>
                 <div class="text-[0.6rem] text-slate-600 mt-1">{parseMacs(filterWhitelist).length} MACs</div>
