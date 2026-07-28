@@ -135,8 +135,11 @@ async def refresh_device_cache():
     try:
         data = await _lads_get("/lads/DeviceSet")
         devices = []
+        seen = set()
         for d in data:
             name = d.get("browseName", d.get("displayName", "?"))
+            if name in seen: continue
+            seen.add(name)
             devices.append({
                 "name": name,
                 "nodeId": name,
