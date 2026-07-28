@@ -135,7 +135,7 @@ async def get_cached_devices():
 async def refresh_device_cache():
     """Fetch fresh device list from OPC UA and cache it."""
     try:
-        data = await opcua.browse_node("ns=3;s=DeviceSet")
+        data = await opcua.browse_node("ns=3;i=5001")
         devices = []
         seen = set()
         for dev in data.get("children", []):
