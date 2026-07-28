@@ -154,7 +154,17 @@
 
   // ── Mac address helpers ───────────────────────────────────────
   function parseMacs(str) {
-    return (str || '').split(',').map(s => s.trim().replace(/"/g, '')).filter(Boolean)
+    if (!str) return []
+    // Handle JSON array format: ["MAC1","MAC2"]
+    const trimmed = str.trim()
+    if (trimmed.startsWith('[')) {
+      try {
+        const arr = JSON.parse(trimmed)
+        if (Array.isArray(arr)) return arr.map(s => String(s).trim()).filter(Boolean)
+      } catch(e) {}
+    }
+    // Fallback: comma-separated with optional quotes
+    return trimmed.split(',').map(s => s.trim().replace(/^["']|["']$/g, '')).filter(Boolean)
   }
   function macsToStr(macs) {
     return macs.map(m => `"${m}"`).join(',')
@@ -220,7 +230,7 @@
                 <div class="max-h-32 overflow-y-auto space-y-0.5">
                   {#each parseMacs(filterBlacklist) as mac}
                     <div class="flex items-center justify-between py-0.5 px-2 rounded bg-slate-800/30 text-xs font-mono">
-                      <span class="text-slate-300">{mac}</span>
+                      <span style="color:var(--text)">{mac}</span>
                       <button class="text-red-400 hover:text-red-300 text-[0.6rem]" onclick={() => removeMac('blacklist', 'com/essentim/gateway/filters/blacklist', mac)}>✕</button>
                     </div>
                   {/each}
@@ -238,7 +248,7 @@
                 <div class="max-h-32 overflow-y-auto space-y-0.5">
                   {#each parseMacs(filterWhitelist) as mac}
                     <div class="flex items-center justify-between py-0.5 px-2 rounded bg-slate-800/30 text-xs font-mono">
-                      <span class="text-slate-300">{mac}</span>
+                      <span style="color:var(--text)">{mac}</span>
                       <button class="text-red-400 hover:text-red-300 text-[0.6rem]" onclick={() => removeMac('whitelist', 'com/essentim/gateway/filters/whitelist', mac)}>✕</button>
                     </div>
                   {/each}
