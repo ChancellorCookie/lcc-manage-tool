@@ -270,8 +270,9 @@ async def mqtt_publish(body: dict):
     payload = body.get("payload", "")
     if not topic:
         raise HTTPException(400, "topic required")
+    retain = body.get("retain", True)
     loop = asyncio.get_running_loop()
-    result = await loop.run_in_executor(None, mqtt_exp.publish, topic, payload)
+    result = await loop.run_in_executor(None, mqtt_exp.publish, topic, payload, 1, retain)
     return result
 
 

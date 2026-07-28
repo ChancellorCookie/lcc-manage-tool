@@ -118,6 +118,8 @@
       })
       showToast?.('Filter saved', 'success')
       editingFilter = false
+      // Force re-fetch after a short delay so the gateway can process
+      setTimeout(() => { editingFilter = false; refreshFilters() }, 500)
     } catch(e) { showToast?.(e.message, 'error') }
   }
 
