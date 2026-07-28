@@ -3,7 +3,7 @@
 import asyncio
 import logging
 
-from fastapi import FastAPI, HTTPException, Request, Query
+from fastapi import FastAPI, HTTPException, Request, Query, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import httpx
@@ -134,20 +134,12 @@ async def refresh_device_cache():
     """Fetch device list from LADS REST API (more reliable than OPC UA)."""
     try:
         data = await _lads_get("/lads/DeviceSet")
-        # data is a list of UALADSDevice objects
         devices = []
         for d in data:
             name = d.get("browseName", d.get("displayName", "?"))
-            # The nodeId format: ns=...;s=...
-            # We need to guess the OPC UA node ID from the browseName
-            # LADS browseName format: "SO1DM900129@SO1DM900129"
-            parts = name.split("@")
-            serial = parts[0] if len(parts) > 0 else name
-            # Use a best-guess nodeId (this works for most devices)
-            # The namespace is not available via REST API, so we store it separately
             devices.append({
                 "name": name,
-                "nodeId": name,  # will be resolved on access
+                "nodeId": name,
                 "componentName": d.get("componentName", ""),
             })
         dc.set_cached_devices(devices)
@@ -175,7 +167,6 @@ async def _lads_get(path: str, **params):
 
 @app.get("/api/lads/devices")
 async def lads_devices(location: str = None):
-    """List LADS devices, optionally filtered by location."""
     params = {}
     if location:
         params["hierarchicalLocation"] = location
@@ -184,13 +175,11 @@ async def lads_devices(location: str = None):
 
 @app.get("/api/lads/devices/{device_id}/units")
 async def lads_functional_units(device_id: str):
-    """List functional units for a device."""
     return await _lads_get(f"/lads/DeviceSet/{device_id}/FunctionalUnitSet")
 
 
 @app.get("/api/lads/devices/{device_id}/units/{unit_id}/functions")
 async def lads_functions(device_id: str, unit_id: str):
-    """List functions for a functional unit."""
     return await _lads_get(f"/lads/DeviceSet/{device_id}/FunctionalUnitSet/{unit_id}/FunctionSet")
 
 
@@ -200,7 +189,6 @@ async def lads_history(
     startTime: str, endTime: str = None,
     numValuesPerNode: int = 50000,
 ):
-    """Get historical sensor values."""
     params = {"startTime": startTime, "numValuesPerNode": numValuesPerNode}
     if endTime:
         params["endTime"] = endTime
@@ -216,7 +204,6 @@ async def lads_history(
 async def opcua_status():
     try:
         client = await opcua.get_client()
-        # Quick connectivity test
         node = client.get_objects_node()
         await node.get_children()
         return {"connected": True, "url": opcua.OPC_URL}
@@ -239,6 +226,72 @@ async def read_opcua(nodeId: str):
 @app.post("/api/opcua/write")
 async def write_opcua(body: dict):
     return await opcua.write_node_value(body["nodeId"], body["value"])
+
+
+# ── MQTT Explorer ──────────────────────────────────────────────────
+
+from backend import mqtt_explorer as mqtt_exp
+
+
+@app.get("/api/mqtt/state")
+async def mqtt_state():
+    return mqtt_exp.get_state()
+
+
+@app.post("/api/mqtt/connect")
+async def mqtt_connect(body: dict):
+    host = body.get("host", "")
+    port = body.get("port", 8883)
+    if not host:
+        raise HTTPException(400, "host required")
+    loop = asyncio.get_running_loop()
+    result = await loop.run_in_executor(None, mqtt_exp.connect, host, port)
+    return result
+
+
+@app.post("/api/mqtt/disconnect")
+async def mqtt_disconnect():
+    return mqtt_exp.disconnect()
+
+
+@app.get("/api/mqtt/topics")
+async def mqtt_topics():
+    return {"topics": mqtt_exp.get_topics()}
+
+
+@app.get("/api/mqtt/messages")
+async def mqtt_messages(topic: str = None, limit: int = 50):
+    return {"messages": mqtt_exp.get_messages(topic, limit)}
+
+
+@app.post("/api/mqtt/publish")
+async def mqtt_publish(body: dict):
+    topic = body.get("topic", "")
+    payload = body.get("payload", "")
+    if not topic:
+        raise HTTPException(400, "topic required")
+    loop = asyncio.get_running_loop()
+    result = await loop.run_in_executor(None, mqtt_exp.publish, topic, payload)
+    return result
+
+
+@app.websocket("/api/mqtt/ws")
+async def mqtt_websocket(ws: WebSocket):
+    await ws.accept()
+    last_msg_count = 0
+    try:
+        while True:
+            data = await ws.receive_text()
+            if data == "ping":
+                await ws.send_text("pong")
+            msgs = mqtt_exp.get_messages()
+            if len(msgs) > last_msg_count:
+                new_msgs = msgs[last_msg_count:]
+                last_msg_count = len(msgs)
+                await ws.send_json({"new_messages": new_msgs})
+            await asyncio.sleep(0.5)
+    except Exception:
+        pass
 
 
 if __name__ == "__main__":

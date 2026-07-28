@@ -3,6 +3,7 @@
   import Infrastructure from './lib/pages/Infrastructure.svelte'
   import Sensors from './lib/pages/Sensors.svelte'
   import SensorHistory from './lib/pages/SensorHistory.svelte'
+  import MqttExplorer from './lib/pages/MqttExplorer.svelte'
   import Incidents from './lib/pages/Incidents.svelte'
   import Icon from './lib/Icon.svelte'
   import { onMount } from 'svelte'
@@ -79,6 +80,7 @@
     { id: 'infrastructure', label: 'Infrastructure', icon: 'rooms' },
     { id: 'sensors', label: 'Sensors', icon: 'sensors' },
     { id: 'sensorhistory', label: 'History', icon: 'gateways' },
+    { id: 'mqtt', label: 'MQTT', icon: 'sensors' },
     { id: 'incidents', label: 'Incidents', icon: 'incidents' },
   ]
 </script>
@@ -159,6 +161,8 @@
         <Sensors />
       {:else if page === 'sensorhistory'}
         <SensorHistory />
+      {:else if page === 'mqtt'}
+        <MqttExplorer />
       {:else if page === 'incidents'}
         <Incidents initialTab={incidentsTab} />
       {/if}
