@@ -19,8 +19,10 @@ async def get_client() -> Client:
             await _client.connect()
         else:
             try:
-                # Test connection by actually reading something
-                await _client.get_objects_node().get_children()
+                # Test connection by actually reading the Objects node
+                children = await _client.get_objects_node().get_children()
+                if not children:
+                    raise Exception("Empty children — stale connection")
             except Exception:
                 try:
                     await _client.disconnect()
