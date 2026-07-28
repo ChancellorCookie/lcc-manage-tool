@@ -11,9 +11,20 @@
   let editVal = $state('')
   let saving = $state(false)
   let search = $state('')
+  let sortAsc = $state(true)
 
   let filteredDevices = $derived(
-    search ? devices.filter(d => d.name.toLowerCase().includes(search.toLowerCase())) : devices
+    (() => {
+      let list = search
+        ? devices.filter(d => d.name.toLowerCase().includes(search.toLowerCase()))
+        : [...devices]
+      list.sort((a, b) => {
+        const na = (a.componentName || a.name).toLowerCase()
+        const nb = (b.componentName || b.name).toLowerCase()
+        return sortAsc ? na.localeCompare(nb) : nb.localeCompare(na)
+      })
+      return list
+    })()
   )
 
   let stale = $state(false)
@@ -164,7 +175,9 @@
         <table class="table-glass text-xs w-full">
           <thead>
             <tr class="text-[0.65rem] text-slate-500 uppercase tracking-wider">
-              <th class="py-2 px-3 text-left font-medium">Device</th>
+              <th class="py-2 px-3 text-left font-medium cursor-pointer hover:text-slate-300 select-none" onclick={() => sortAsc = !sortAsc}>
+                Device {sortAsc ? '▲' : '▼'}
+              </th>
               <th class="py-2 px-3 text-right font-medium w-16">NS</th>
               <th class="py-2 px-3 text-left font-medium hidden md:table-cell">Node ID</th>
             </tr>
