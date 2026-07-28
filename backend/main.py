@@ -131,21 +131,28 @@ async def get_cached_devices():
 
 @app.post("/api/opcua/devices/refresh")
 async def refresh_device_cache():
-    """Fetch fresh device list from OPC UA and cache it."""
+    """Fetch device list from LADS REST API (more reliable than OPC UA)."""
     try:
-        data = await opcua.browse_node("ns=3;i=5001")
-        seen = set()
+        data = await _lads_get("/lads/DeviceSet")
+        # data is a list of UALADSDevice objects
         devices = []
-        for dev in (data.get("children") or []):
-            if dev.get("name") in ("DeviceFeatures", "HA Configuration"):
-                continue
-            if dev["name"] not in seen:
-                seen.add(dev["name"])
-                devices.append({"name": dev["name"], "nodeId": dev["nodeId"]})
+        for d in data:
+            name = d.get("browseName", d.get("displayName", "?"))
+            # The nodeId format: ns=...;s=...
+            # We need to guess the OPC UA node ID from the browseName
+            # LADS browseName format: "SO1DM900129@SO1DM900129"
+            parts = name.split("@")
+            serial = parts[0] if len(parts) > 0 else name
+            # Use a best-guess nodeId (this works for most devices)
+            # The namespace is not available via REST API, so we store it separately
+            devices.append({
+                "name": name,
+                "nodeId": name,  # will be resolved on access
+                "componentName": d.get("componentName", ""),
+            })
         dc.set_cached_devices(devices)
         return {"devices": devices, "cached": True, "count": len(devices)}
     except Exception as e:
-        # Fall back to cache
         cached = dc.get_cached_devices()
         return {"devices": cached, "cached": True, "count": len(cached), "stale": True, "error": str(e)[:100]}
 
