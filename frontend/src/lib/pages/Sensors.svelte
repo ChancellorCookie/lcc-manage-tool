@@ -23,12 +23,7 @@
     for (const dev of list) {
       if (dev.componentName) continue
       try {
-        const nodeId = dev.nodeId || ''
-        if (!nodeId.includes(';')) {
-          // LADS-sourced device — try componentName from cache or skip
-          continue
-        }
-        const parts = nodeId.split(';')
+        const parts = dev.nodeId.split(';')
         const ns = parts[0]
         const sid = parts[1].split('=')[1]
         // Direct ComponentName under device root (e.g. SO1DM900129-ComponentName)
@@ -76,13 +71,7 @@
     props = []
     editRow = null
     try {
-      const nodeId = dev.nodeId || ''
-      if (!nodeId.includes(';')) {
-        // LADS REST device — no OPC UA properties
-        propsLoading = false
-        return
-      }
-      const parts = nodeId.split(';')
+      const parts = dev.nodeId.split(';')
       const ns = parts[0]
       const sid = parts[1].split('=')[1]
 
@@ -182,10 +171,8 @@
           </thead>
           <tbody>
             {#each filteredDevices as dev, i (dev.nodeId)}
-              {@const nodeId = dev.nodeId || ''}
-              {@const hasNs = nodeId.includes(';')}
-              {@const ns = hasNs ? nodeId.split(';')[0].replace('ns=','') : '—'}
-              {@const hue = hasNs ? (parseInt(ns) * 37) % 360 : 0}
+              {@const ns = dev.nodeId.split(';')[0].replace('ns=','')}
+              {@const hue = (parseInt(ns) * 37) % 360}
               <tr class="cursor-pointer transition-colors {i % 2 === 0 ? 'bg-slate-800/20' : ''} {selected?.nodeId === dev.nodeId ? '!bg-blue-600/20 ring-1 ring-inset ring-blue-500/30' : 'hover:bg-slate-800/40'}"
                   onclick={() => selectDevice(dev)}>
                 <td class="py-2 px-3">

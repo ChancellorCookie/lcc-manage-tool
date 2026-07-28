@@ -3,6 +3,8 @@
 import asyncio
 import logging
 
+logger = logging.getLogger(__name__)
+
 from fastapi import FastAPI, HTTPException, Request, Query, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -131,25 +133,33 @@ async def get_cached_devices():
 
 @app.post("/api/opcua/devices/refresh")
 async def refresh_device_cache():
-    """Fetch device list from LADS REST API (more reliable than OPC UA)."""
+    """Fetch fresh device list from OPC UA and cache it."""
     try:
-        data = await _lads_get("/lads/DeviceSet")
+        data = await opcua.browse_node("ns=3;s=DeviceSet")
         devices = []
         seen = set()
-        for d in data:
-            name = d.get("browseName", d.get("displayName", "?"))
-            if name in seen: continue
+        for dev in data.get("children", []):
+            name = dev.get("name", "?")
+            # Skip non-device container nodes
+            if name in ("DeviceFeatures", "HA Configuration"):
+                continue
+            if not dev.get("isDevice", True):
+                continue
+            ns_id = dev.get("nodeId", name)
+            component_name = dev.get("componentName", "")
+            if name in seen:
+                continue
             seen.add(name)
             devices.append({
                 "name": name,
-                "nodeId": name,
-                "componentName": d.get("componentName", ""),
+                "nodeId": ns_id,
+                "componentName": component_name,
             })
         dc.set_cached_devices(devices)
         return {"devices": devices, "cached": True, "count": len(devices)}
     except Exception as e:
-        cached = dc.get_cached_devices()
-        return {"devices": cached, "cached": True, "count": len(cached), "stale": True, "error": str(e)[:100]}
+        logger.error(f"Device refresh failed: {e}")
+        raise HTTPException(500, str(e))
 
 
 # ── Sensor History (LADS API) ───────────────────────────────────
