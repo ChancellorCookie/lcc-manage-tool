@@ -23,7 +23,12 @@
     for (const dev of list) {
       if (dev.componentName) continue
       try {
-        const parts = dev.nodeId.split(';')
+        const nodeId = dev.nodeId || ''
+        if (!nodeId.includes(';')) {
+          // LADS-sourced device — try componentName from cache or skip
+          continue
+        }
+        const parts = nodeId.split(';')
         const ns = parts[0]
         const sid = parts[1].split('=')[1]
         // Direct ComponentName under device root (e.g. SO1DM900129-ComponentName)
@@ -71,7 +76,13 @@
     props = []
     editRow = null
     try {
-      const parts = dev.nodeId.split(';')
+      const nodeId = dev.nodeId || ''
+      if (!nodeId.includes(';')) {
+        // LADS REST device — no OPC UA properties
+        propsLoading = false
+        return
+      }
+      const parts = nodeId.split(';')
       const ns = parts[0]
       const sid = parts[1].split('=')[1]
 
