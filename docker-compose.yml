@@ -15,7 +15,6 @@ services:
     volumes:
       - ./config:/app/config
       - ./data:/app/data
-    user: "1000:1000"  # run as administrator to avoid root-owned DB files
 
   frontend:
     build: ./frontend
