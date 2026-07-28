@@ -140,20 +140,16 @@ async def refresh_device_cache():
         seen = set()
         for dev in data.get("children", []):
             name = dev.get("name", "?")
-            # Skip non-device container nodes
+            # Skip known container nodes
             if name in ("DeviceFeatures", "HA Configuration"):
                 continue
-            if not dev.get("isDevice", True):
-                continue
-            ns_id = dev.get("nodeId", name)
-            component_name = dev.get("componentName", "")
             if name in seen:
                 continue
             seen.add(name)
             devices.append({
                 "name": name,
-                "nodeId": ns_id,
-                "componentName": component_name,
+                "nodeId": dev.get("nodeId", name),
+                "componentName": dev.get("componentName", ""),
             })
         dc.set_cached_devices(devices)
         return {"devices": devices, "cached": True, "count": len(devices)}
