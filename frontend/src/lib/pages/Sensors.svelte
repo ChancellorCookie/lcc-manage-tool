@@ -171,8 +171,10 @@
           </thead>
           <tbody>
             {#each filteredDevices as dev, i (dev.nodeId)}
-              {@const ns = dev.nodeId.split(';')[0].replace('ns=','')}
-              {@const hue = (parseInt(ns) * 37) % 360}
+              {@const nodeId = dev.nodeId || ''}
+              {@const hasNs = nodeId.includes(';')}
+              {@const ns = hasNs ? nodeId.split(';')[0].replace('ns=','') : '—'}
+              {@const hue = hasNs ? (parseInt(ns) * 37) % 360 : 0}
               <tr class="cursor-pointer transition-colors {i % 2 === 0 ? 'bg-slate-800/20' : ''} {selected?.nodeId === dev.nodeId ? '!bg-blue-600/20 ring-1 ring-inset ring-blue-500/30' : 'hover:bg-slate-800/40'}"
                   onclick={() => selectDevice(dev)}>
                 <td class="py-2 px-3">
