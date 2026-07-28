@@ -11,21 +11,16 @@
   let showDelete = $state(null)
   let showCreds = $state(null)
 
-  // ── MQTT per server ─────────────────────────────────────────────
-  let mqttServer = $state(null)        // which server is in MQTT mode
-  let mqttConnecting = $state(false)
-  let mqttConnected = $state(false)
-  let mqttTopics = $state([])
-  let mqttMessages = $state([])
-  let mqttSelectedTopic = $state('')
-  let mqttExpanded = $state(new Set())
-  let mqttPollTimer = null
-  let mqttPublishTopic = $state('')
-  let mqttPublishPayload = $state('')
-  let mqttPublishStatus = $state('')
+  // ── MQTT Filter per server ──────────────────────────────────────
+  let filterServer = $state(null)
+  let filterConnecting = $state(false)
+  let filterConnected = $state(false)
+  let filterBlacklist = $state('')
+  let filterWhitelist = $state('')
+  let filterPollTimer = null
 
   onMount(() => loadServers())
-  onDestroy(() => { if (mqttPollTimer) clearInterval(mqttPollTimer) })
+  onDestroy(() => { if (filterPollTimer) clearInterval(filterPollTimer) })
 
   async function loadServers() {
     loading = true; error = ''
@@ -68,11 +63,10 @@
     return m ? m[1] : null
   }
 
-  async function connectMqtt(server) {
+  async function connectFilters(server) {
     const ip = extractIp(server.endpointUrl)
-    if (!ip) { showToast?.('No IP found in endpoint URL', 'error'); return }
-
-    mqttConnecting = true; mqttServer = server
+    if (!ip) { showToast?.('No IP found', 'error'); return }
+    filterConnecting = true; filterServer = server
     try {
       const r = await fetch('/api/mqtt/connect', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -80,102 +74,61 @@
       })
       const data = await r.json()
       if (data.connected) {
-        mqttConnected = true
-        startMqttPoll()
+        filterConnected = true; startFilterPoll()
       } else {
-        showToast?.(data.error || 'MQTT connect failed', 'error')
-        closeMqtt()
+        showToast?.(data.error || 'MQTT connect failed', 'error'); closeFilters()
       }
-    } catch(e) { showToast?.(e.message, 'error'); closeMqtt() }
-    mqttConnecting = false
+    } catch(e) { showToast?.(e.message, 'error'); closeFilters() }
+    filterConnecting = false
   }
 
-  function closeMqtt() {
-    if (mqttPollTimer) { clearInterval(mqttPollTimer); mqttPollTimer = null }
-    mqttConnected = false; mqttServer = null; mqttTopics = []; mqttMessages = []
-    mqttSelectedTopic = ''; mqttExpanded = new Set()
+  function closeFilters() {
+    if (filterPollTimer) { clearInterval(filterPollTimer); filterPollTimer = null }
+    filterConnected = false; filterServer = null
+    filterBlacklist = ''; filterWhitelist = ''
   }
 
-  async function disconnectMqtt() {
-    await fetch('/api/mqtt/disconnect', { method: 'POST' })
-    closeMqtt()
+  async function disconnectFilters() {
+    await fetch('/api/mqtt/disconnect', { method: 'POST' }); closeFilters()
   }
 
-  function startMqttPoll() {
-    if (mqttPollTimer) clearInterval(mqttPollTimer)
-    mqttPollTimer = setInterval(refreshMqtt, 1000)
-    refreshMqtt()
+  function startFilterPoll() {
+    if (filterPollTimer) clearInterval(filterPollTimer)
+    filterPollTimer = setInterval(refreshFilters, 1000); refreshFilters()
   }
 
-  async function refreshMqtt() {
+  async function refreshFilters() {
     try {
-      const [tr, mr] = await Promise.all([
-        fetch('/api/mqtt/topics'),
-        fetch('/api/mqtt/messages?limit=200')
-      ])
-      const td = await tr.json(); mqttTopics = td.topics || []
-      const md = await mr.json(); mqttMessages = md.messages || []
+      const r = await fetch('/api/mqtt/messages?limit=50')
+      const md = await r.json()
+      for (const msg of md.messages || []) {
+        if (msg.topic.includes('/filters/blacklist')) filterBlacklist = msg.payload
+        if (msg.topic.includes('/filters/whitelist')) filterWhitelist = msg.payload
+      }
     } catch(e) {}
   }
 
-  function toggleMqttTopic(path) {
-    if (mqttExpanded.has(path)) mqttExpanded.delete(path)
-    else mqttExpanded.add(path)
-    mqttExpanded = mqttExpanded
-  }
-
-  function selectMqttTopic(path) { mqttSelectedTopic = path }
-
-  function buildTree(list) {
-    const root = {}
-    for (const t of list) {
-      const parts = t.path.split('/')
-      let node = root
-      for (let i = 0; i < parts.length; i++) {
-        const key = parts.slice(0, i + 1).join('/')
-        if (!node[key]) node[key] = { children: {}, info: null, path: key }
-        node = node[key].children
-      }
-      let cur = root
-      for (let i = 0; i < parts.length; i++) {
-        const key = parts.slice(0, i + 1).join('/')
-        if (i === parts.length - 1) cur[key].info = t
-        cur = cur[key].children
-      }
-    }
-    return root
-  }
-
-  function getTreeNodes(root, depth = 0) {
-    const result = []
-    for (const key of Object.keys(root).sort()) {
-      const n = root[key]
-      result.push({ path: n.path, info: n.info, depth, hasChildren: Object.keys(n.children).length > 0, key })
-      if (mqttExpanded.has(n.path)) result.push(...getTreeNodes(n.children, depth + 1))
-    }
-    return result
-  }
-
-  async function doMqttPublish() {
-    if (!mqttPublishTopic) return
-    mqttPublishStatus = ''
+  async function saveFilter(topic, value) {
     try {
-      const r = await fetch('/api/mqtt/publish', {
+      await fetch('/api/mqtt/publish', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topic: mqttPublishTopic, payload: mqttPublishPayload })
+        body: JSON.stringify({ topic, payload: value })
       })
-      const data = await r.json()
-      mqttPublishStatus = data.published ? '✅ Published' : '❌ ' + (data.error || 'Failed')
-    } catch(e) { mqttPublishStatus = '❌ ' + e.message }
+      showToast?.('Filter saved', 'success')
+    } catch(e) { showToast?.(e.message, 'error') }
   }
-
-  let filteredMqttMessages = $derived(
-    mqttSelectedTopic ? mqttMessages.filter(m => m.topic === mqttSelectedTopic) : mqttMessages
-  )
 
   function fmtTime(ts) {
     const d = new Date(ts * 1000)
     return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`
+  }
+
+  // ── Mac address helpers ───────────────────────────────────────
+  function parseMacs(str) {
+    return (str || '').split(',').map(s => s.trim().replace(/"/g, '')).filter(Boolean)
+  }
+  function macsToStr(macs) {
+    return macs.map(m => `"${m}"`).join(',')
   }
 </script>
 
@@ -212,12 +165,12 @@
             </div>
             <div class="flex gap-2 ml-4">
               <button class="btn btn-ghost text-xs" onclick={() => loadAndShowCreds(server)}>Credentials</button>
-              <!-- MQTT Button -->
-              {#if mqttServer?.id === server.id && mqttConnected}
-                <button class="btn btn-ghost text-xs text-green-400" onclick={disconnectMqtt}>MQTT ✓</button>
+              <!-- Filter Button -->
+              {#if filterServer?.id === server.id && filterConnected}
+                <button class="btn btn-ghost text-xs text-green-400" onclick={disconnectFilters}>Filters ✓</button>
               {:else}
-                <button class="btn btn-ghost text-xs" onclick={() => connectMqtt(server)} disabled={mqttConnecting}>
-                  {mqttConnecting && mqttServer?.id === server.id ? '⋯' : 'MQTT'}
+                <button class="btn btn-ghost text-xs" onclick={() => connectFilters(server)} disabled={filterConnecting}>
+                  {filterConnecting && filterServer?.id === server.id ? '⋯' : 'Filters'}
                 </button>
               {/if}
               {#if server.isManual}
@@ -226,59 +179,34 @@
             </div>
           </div>
 
-          <!-- Inline MQTT Explorer -->
-          {#if mqttServer?.id === server.id && mqttConnected}
-            <div class="mt-4 pt-4 border-t border-slate-800 flex gap-4" style="height:340px">
-              <!-- Topic Tree -->
-              <div class="card flex-1 overflow-y-auto !p-3" style="max-width:300px">
-                <div class="text-xs text-slate-500 uppercase mb-2">Topics ({mqttTopics.length})</div>
-                {#each getTreeNodes(buildTree(mqttTopics)) as node}
-                  <button
-                    class="w-full text-left text-xs py-0.5 px-1 rounded hover:bg-slate-700/50 flex items-center gap-1 {mqttSelectedTopic === node.path ? 'bg-blue-500/10 text-blue-400' : 'text-slate-300'}"
-                    style="padding-left:{node.depth * 12 + 4}px"
-                    onclick={() => {
-                      if (node.hasChildren) toggleMqttTopic(node.path)
-                      selectMqttTopic(node.path)
-                    }}
-                  >
-                    {#if node.hasChildren}
-                      <span class="text-[0.6rem] w-3">{mqttExpanded.has(node.path) ? '▼' : '▶'}</span>
-                    {:else}
-                      <span class="w-3"></span>
-                    {/if}
-                    <span class="truncate">{node.path.split('/').pop()}</span>
-                    {#if node.info}<span class="text-[0.6rem] text-slate-500 ml-auto">{node.info.count}</span>{/if}
-                  </button>
-                {/each}
+          <!-- Inline Filter Panel -->
+          {#if filterServer?.id === server.id && filterConnected}
+            <div class="mt-4 pt-4 border-t border-slate-800 grid grid-cols-2 gap-4">
+              <!-- Blacklist -->
+              <div>
+                <div class="flex items-center justify-between mb-2">
+                  <span class="text-xs text-slate-500 uppercase">Blacklist</span>
+                  <button class="btn btn-primary !text-xs !py-0.5 !px-2" onclick={() => saveFilter('com/essentim/gateway/filters/blacklist', filterBlacklist)}>Save</button>
+                </div>
+                <textarea
+                  class="font-mono text-xs h-32 w-full"
+                  bind:value={filterBlacklist}
+                  placeholder="&quot;AA:BB:CC:DD:EE:FF&quot;,&quot;11:22:33:44:55:66&quot;"
+                ></textarea>
+                <div class="text-[0.6rem] text-slate-600 mt-1">{parseMacs(filterBlacklist).length} MACs</div>
               </div>
-
-              <!-- Messages + Publish -->
-              <div class="flex flex-col flex-1 gap-2 overflow-hidden">
-                <div class="card flex-1 flex flex-col overflow-hidden !p-3">
-                  <div class="text-xs text-slate-500 uppercase mb-1">
-                    Messages {mqttSelectedTopic ? '· ' + mqttSelectedTopic : ''} ({filteredMqttMessages.length})
-                  </div>
-                  <div class="flex-1 overflow-y-auto font-mono text-[0.65rem] space-y-0.5">
-                    {#each filteredMqttMessages as msg}
-                      <div class="flex gap-2 py-0.5 border-b border-slate-800/20">
-                        <span class="text-slate-600 flex-shrink-0">{fmtTime(msg.time)}</span>
-                        <span class="text-blue-400 flex-shrink-0 truncate max-w-[35%] cursor-pointer" onclick={() => selectMqttTopic(msg.topic)}>{msg.topic}</span>
-                        <span class="text-slate-300 break-all">{msg.payload}</span>
-                      </div>
-                    {/each}
-                  </div>
+              <!-- Whitelist -->
+              <div>
+                <div class="flex items-center justify-between mb-2">
+                  <span class="text-xs text-slate-500 uppercase">Whitelist</span>
+                  <button class="btn btn-primary !text-xs !py-0.5 !px-2" onclick={() => saveFilter('com/essentim/gateway/filters/whitelist', filterWhitelist)}>Save</button>
                 </div>
-
-                <div class="card !p-3">
-                  <div class="flex gap-2">
-                    <input type="text" bind:value={mqttPublishTopic} placeholder="topic" class="flex-1 !text-xs !py-1" />
-                    <input type="text" bind:value={mqttPublishPayload} placeholder="payload" class="flex-[2] !text-xs !py-1" />
-                    <button class="btn btn-primary !text-xs !py-1" onclick={doMqttPublish}>Send</button>
-                  </div>
-                  {#if mqttPublishStatus}
-                    <div class="mt-1 text-xs {mqttPublishStatus.startsWith('✅') ? 'text-green-400' : 'text-red-400'}">{mqttPublishStatus}</div>
-                  {/if}
-                </div>
+                <textarea
+                  class="font-mono text-xs h-32 w-full"
+                  bind:value={filterWhitelist}
+                  placeholder="&quot;AA:BB:CC:DD:EE:FF&quot;"
+                ></textarea>
+                <div class="text-[0.6rem] text-slate-600 mt-1">{parseMacs(filterWhitelist).length} MACs</div>
               </div>
             </div>
           {/if}
