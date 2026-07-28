@@ -118,8 +118,32 @@
       })
       showToast?.('Filter saved', 'success')
       editingFilter = false
-      // Force re-fetch after a short delay so the gateway can process
       setTimeout(() => { editingFilter = false; refreshFilters() }, 500)
+    } catch(e) { showToast?.(e.message, 'error') }
+  }
+
+  async function addMac(list, topic) {
+    const mac = prompt('MAC-Adresse: (z.B. AA:BB:CC:DD:EE:FF)')
+    if (!mac) return
+    try {
+      await fetch('/api/mqtt/publish', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic: topic + '/add', payload: `"${mac.trim().toUpperCase()}"` })
+      })
+      showToast?.(`${mac} hinzugefügt`, 'success')
+      setTimeout(refreshFilters, 500)
+    } catch(e) { showToast?.(e.message, 'error') }
+  }
+
+  async function removeMac(list, topic, mac) {
+    if (!confirm(`"${mac}" entfernen?`)) return
+    try {
+      await fetch('/api/mqtt/publish', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic: topic + '/delete', payload: `"${mac}"` })
+      })
+      showToast?.(`${mac} entfernt`, 'success')
+      setTimeout(refreshFilters, 500)
     } catch(e) { showToast?.(e.message, 'error') }
   }
 
@@ -190,30 +214,38 @@
               <!-- Blacklist -->
               <div>
                 <div class="flex items-center justify-between mb-2">
-                  <span class="text-xs text-slate-500 uppercase">Blacklist</span>
-                  <button class="btn btn-primary !text-xs !py-0.5 !px-2" onclick={() => saveFilter('com/essentim/gateway/filters/blacklist', filterBlacklist)}>Save</button>
+                  <span class="text-xs text-slate-500 uppercase">Blacklist ({parseMacs(filterBlacklist).length})</span>
+                  <button class="btn btn-primary !text-xs !py-0.5 !px-2" onclick={() => addMac('blacklist', 'com/essentim/gateway/filters/blacklist')}>+ Add</button>
                 </div>
-                <textarea
-                  class="font-mono text-xs h-32 w-full"
-                  bind:value={filterBlacklist}
-                  onfocus={() => editingFilter = true}
-                  placeholder="&quot;AA:BB:CC:DD:EE:FF&quot;,&quot;11:22:33:44:55:66&quot;"
-                ></textarea>
-                <div class="text-[0.6rem] text-slate-600 mt-1">{parseMacs(filterBlacklist).length} MACs</div>
+                <div class="max-h-32 overflow-y-auto space-y-0.5">
+                  {#each parseMacs(filterBlacklist) as mac}
+                    <div class="flex items-center justify-between py-0.5 px-2 rounded bg-slate-800/30 text-xs font-mono">
+                      <span class="text-slate-300">{mac}</span>
+                      <button class="text-red-400 hover:text-red-300 text-[0.6rem]" onclick={() => removeMac('blacklist', 'com/essentim/gateway/filters/blacklist', mac)}>✕</button>
+                    </div>
+                  {/each}
+                  {#if parseMacs(filterBlacklist).length === 0}
+                    <div class="text-slate-600 text-xs text-center py-4">Keine Einträge</div>
+                  {/if}
+                </div>
               </div>
               <!-- Whitelist -->
               <div>
                 <div class="flex items-center justify-between mb-2">
-                  <span class="text-xs text-slate-500 uppercase">Whitelist</span>
-                  <button class="btn btn-primary !text-xs !py-0.5 !px-2" onclick={() => saveFilter('com/essentim/gateway/filters/whitelist', filterWhitelist)}>Save</button>
+                  <span class="text-xs text-slate-500 uppercase">Whitelist ({parseMacs(filterWhitelist).length})</span>
+                  <button class="btn btn-primary !text-xs !py-0.5 !px-2" onclick={() => addMac('whitelist', 'com/essentim/gateway/filters/whitelist')}>+ Add</button>
                 </div>
-                <textarea
-                  class="font-mono text-xs h-32 w-full"
-                  bind:value={filterWhitelist}
-                  onfocus={() => editingFilter = true}
-                  placeholder="&quot;AA:BB:CC:DD:EE:FF&quot;"
-                ></textarea>
-                <div class="text-[0.6rem] text-slate-600 mt-1">{parseMacs(filterWhitelist).length} MACs</div>
+                <div class="max-h-32 overflow-y-auto space-y-0.5">
+                  {#each parseMacs(filterWhitelist) as mac}
+                    <div class="flex items-center justify-between py-0.5 px-2 rounded bg-slate-800/30 text-xs font-mono">
+                      <span class="text-slate-300">{mac}</span>
+                      <button class="text-red-400 hover:text-red-300 text-[0.6rem]" onclick={() => removeMac('whitelist', 'com/essentim/gateway/filters/whitelist', mac)}>✕</button>
+                    </div>
+                  {/each}
+                  {#if parseMacs(filterWhitelist).length === 0}
+                    <div class="text-slate-600 text-xs text-center py-4">Keine Einträge</div>
+                  {/if}
+                </div>
               </div>
             </div>
           {/if}
