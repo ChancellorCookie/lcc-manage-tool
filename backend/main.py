@@ -39,7 +39,7 @@ app.include_router(notifier_router)
 async def _device_health_check():
     """Periodically check if cached devices respond on OPC UA."""
     while True:
-        await asyncio.sleep(60)
+        await asyncio.sleep(1800)  # check every 30 minutes
         devices = dc.get_cached_devices()
         if not devices:
             continue
@@ -154,6 +154,29 @@ async def delete_credentials(server_id: str):
 async def get_cached_devices():
     """Return cached device list (instant load)."""
     return {"devices": dc.get_cached_devices()}
+
+
+@app.post("/api/opcua/devices/status")
+async def check_device_status():
+    """Run a device health check now."""
+    devices = dc.get_cached_devices()
+    if not devices:
+        return {"checked": 0}
+    client = opcua.get_client()
+    if not client:
+        raise HTTPException(503, "OPC UA not connected")
+    online = 0
+    offline = 0
+    for dev in devices:
+        try:
+            node = client.get_node(dev["nodeId"])
+            await node.read_browse_name()
+            dc.set_device_online(dev["nodeId"])
+            online += 1
+        except Exception:
+            dc.set_device_offline(dev["nodeId"])
+            offline += 1
+    return {"checked": len(devices), "online": online, "offline": offline}
 
 
 @app.post("/api/opcua/devices/refresh")
