@@ -43,7 +43,7 @@ async def _device_health_check():
         devices = dc.get_cached_devices()
         if not devices:
             continue
-        client = opcua.get_client()
+        client = await opcua.get_client()
         if not client:
             continue
         for dev in devices:
@@ -162,7 +162,7 @@ async def check_device_status():
     devices = dc.get_cached_devices()
     if not devices:
         return {"checked": 0}
-    client = opcua.get_client()
+    client = await opcua.get_client()
     if not client:
         raise HTTPException(503, "OPC UA not connected")
     online = 0
