@@ -13,6 +13,9 @@ import httpx
 from backend import lcc_client as lcc
 from backend import opcua_client as opcua
 from backend import device_cache as dc
+import logging
+
+logger = logging.getLogger(__name__)
 from backend.notifier.api import router as notifier_router
 
 log = logging.getLogger("lcc_tools.main")
@@ -31,11 +34,33 @@ app.add_middleware(
 app.include_router(notifier_router)
 
 
+# ── Device health check (background) ───────────────────────────────
+
+async def _device_health_check():
+    """Periodically check if cached devices respond on OPC UA."""
+    while True:
+        await asyncio.sleep(60)
+        devices = dc.get_cached_devices()
+        if not devices:
+            continue
+        client = opcua.get_client()
+        if not client:
+            continue
+        for dev in devices:
+            try:
+                node = client.get_node(dev["nodeId"])
+                await node.read_browse_name()
+                dc.set_device_online(dev["nodeId"])
+            except Exception:
+                dc.set_device_offline(dev["nodeId"])
+
+
 # ── Notifier background task ───────────────────────────────────────
 
 @app.on_event("startup")
 async def start_notifier():
     """Launch the incident notifier poll loop as a background task."""
+    asyncio.create_task(_device_health_check())
     try:
         from backend.notifier.service import Service
 

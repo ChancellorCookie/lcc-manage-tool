@@ -25,6 +25,7 @@ def _get_db() -> sqlite3.Connection:
             name TEXT,
             node_id TEXT,
             component_name TEXT,
+            online INTEGER DEFAULT 1,
             last_updated REAL
         )
     """)
@@ -84,11 +85,11 @@ def get_cached_devices() -> list[dict]:
     """Get cached device list including component names."""
     conn = _get_db()
     rows = conn.execute(
-        "SELECT serial, name, node_id, component_name, last_updated FROM device_list ORDER BY serial"
+        "SELECT serial, name, node_id, component_name, online, last_updated FROM device_list ORDER BY serial"
     ).fetchall()
     conn.close()
     return [
-        {"name": r[1], "nodeId": r[2], "componentName": r[3] or "", "lastUpdated": r[4]}
+        {"name": r[1], "nodeId": r[2], "componentName": r[3] or "", "online": bool(r[4]), "lastUpdated": r[5]}
         for r in rows
     ]
 
@@ -117,5 +118,19 @@ def set_component_name(serial: str, component_name: str):
         "UPDATE device_list SET component_name = ?, last_updated = ? WHERE serial = ?",
         (component_name, time.time(), serial)
     )
+    conn.commit()
+    conn.close()
+
+
+def set_device_online(serial: str):
+    conn = _get_db()
+    conn.execute("UPDATE device_list SET online = 1, last_updated = ? WHERE serial = ?", (time.time(), serial))
+    conn.commit()
+    conn.close()
+
+
+def set_device_offline(serial: str):
+    conn = _get_db()
+    conn.execute("UPDATE device_list SET online = 0, last_updated = ? WHERE serial = ?", (time.time(), serial))
     conn.commit()
     conn.close()

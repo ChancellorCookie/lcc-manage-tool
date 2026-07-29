@@ -189,10 +189,19 @@
               <tr class="cursor-pointer transition-colors {i % 2 === 0 ? 'bg-slate-800/20' : ''} {selected?.nodeId === dev.nodeId ? '!bg-blue-600/20 ring-1 ring-inset ring-blue-500/30' : 'hover:bg-slate-800/40'}"
                   onclick={() => selectDevice(dev)}>
                 <td class="py-2 px-3">
-                  <div class="text-xs text-slate-200 truncate max-w-[300px]">{dev.componentName || dev.name}</div>
+                  <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full flex-shrink-0"
+                      class:bg-green-400={dev.online !== false}
+                      class:bg-red-400={dev.online === false}
+                      title={dev.online !== false ? 'Online' : 'Offline'}
+                    ></span>
+                    <div>
+                      <div class="text-xs text-slate-200 truncate max-w-[300px]">{dev.componentName || dev.name}</div>
                   {#if !dev.componentName}
                     <div class="text-[0.6rem] text-slate-600 animate-pulse">lade…</div>
                   {/if}
+                    </div>
+                  </div>
                 </td>
                 <td class="py-2 px-3 text-right">
                   <span class="inline-flex items-center gap-1 text-[0.6rem] text-slate-500 tabular-nums">
