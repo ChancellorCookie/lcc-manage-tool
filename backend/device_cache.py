@@ -104,7 +104,10 @@ def set_cached_devices(devices: list[dict]):
         existing[r[0]] = (r[1], r[2], r[3])
     for d in devices:
         serial = d.get("nodeId", "")
-        prev = existing.get(serial, ("", 0, 0))
+        prev = existing.get(serial)
+        prev_cn = prev[0] if prev else ""
+        prev_online = prev[1] if prev else None  # None = new device
+        prev_seen = prev[2] if prev else 0
         conn.execute("""
             INSERT OR REPLACE INTO device_list (serial, name, node_id, component_name, online, last_seen, last_updated)
             VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -112,9 +115,9 @@ def set_cached_devices(devices: list[dict]):
             serial,
             d.get("name", ""),
             serial,
-            d.get("componentName") or prev[0] or "",
-            prev[1] if prev[1] in (0, 1) else 1,  # preserve online, default online for new
-            prev[2] if prev[2] != 0 else 0,   # preserve last_seen
+            d.get("componentName") or prev_cn or "",
+            prev_online if prev_online is not None else 1,  # new devices default online
+            prev_seen if prev_seen else 0,
             now
         ))
     conn.commit()
