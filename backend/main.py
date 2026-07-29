@@ -212,7 +212,7 @@ async def refresh_device_cache():
             if cached["nodeId"] not in live_serials and cached["online"] != 0:
                 dc.set_device_offline(cached["nodeId"])
 
-        return {"devices": live_devices, "cached": True, "count": len(live_devices)}
+        return {"devices": dc.get_cached_devices(), "cached": True, "count": len(live_devices)}
     except Exception as e:
         logger.error(f"Device refresh failed: {e}")
         raise HTTPException(500, str(e))
