@@ -174,26 +174,6 @@
             </div>
           </button>
 
-          <!-- Devices Online -->
-          <button class="card w-full text-left hover:border-blue-500/40 transition-colors cursor-pointer flex-1 flex flex-col" onclick={() => navigate('sensors')}>
-            <div class="flex items-center gap-4">
-              <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style="background: rgba(52,211,153,0.15)">
-                <span class="text-lg">{deviceOnline}</span>
-              </div>
-              <div>
-                <h3 class="text-lg font-bold">{deviceOnline}/{deviceTotal} Online</h3>
-                <p class="text-xs text-slate-500">OPC UA Devices &middot; Status aus DeviceSet</p>
-              </div>
-              <span class="ml-auto text-slate-600 text-sm">→</span>
-            </div>
-            <div class="flex items-center gap-2 text-sm mt-auto pb-1">
-              <span class="w-2 h-2 rounded-full"
-                style="background:{deviceOnline === deviceTotal ? '#34d399' : deviceOnline > 0 ? '#fbbf24' : '#f87171'}"
-              ></span>
-              <span class="text-slate-400">{deviceTotal - deviceOnline} offline</span>
-            </div>
-          </button>
-
           <!-- Manage Devices -->
           <button class="card w-full text-left hover:border-blue-500/40 transition-colors cursor-pointer flex-1 flex flex-col" onclick={() => navigate('sensors')}>
             <div class="flex items-center gap-4">
@@ -218,6 +198,7 @@
                 <span class="w-2 h-2 rounded-full bg-red-400"></span>
                 <span class="text-red-400">Nicht verbunden</span>
               {/if}
+              <span class="ml-auto text-slate-400">{deviceOnline}/{deviceTotal} Online</span>
             </div>
           </button>
         </div>
