@@ -191,9 +191,10 @@
                 <td class="py-2 px-3">
                   <div class="flex items-center gap-2">
                     <span class="w-2 h-2 rounded-full flex-shrink-0"
-                      class:bg-green-400={dev.online !== false}
-                      class:bg-red-400={dev.online === false}
-                      title={dev.online !== false ? 'Online' : 'Offline'}
+                      class:bg-green-400={dev.online === 1}
+                      class:bg-red-400={dev.online === 0}
+                      class:bg-slate-600={dev.online === -1 || dev.online == null}
+                      title={dev.online === 1 ? 'Online' : dev.online === 0 ? 'Offline' : 'Unknown'}
                     ></span>
                     <div>
                       <div class="text-xs text-slate-200 truncate max-w-[300px]">{dev.componentName || dev.name}</div>
