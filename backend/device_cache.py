@@ -113,7 +113,7 @@ def set_cached_devices(devices: list[dict]):
             d.get("name", ""),
             serial,
             d.get("componentName") or prev[0] or "",
-            prev[1] if prev[1] != 0 else -1,  # preserve online status
+            prev[1] if prev[1] in (0, 1) else 1,  # preserve online, default online for new
             prev[2] if prev[2] != 0 else 0,   # preserve last_seen
             now
         ))

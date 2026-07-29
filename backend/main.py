@@ -211,9 +211,6 @@ async def refresh_device_cache():
         for cached in all_cached:
             if cached["nodeId"] not in live_serials and cached["online"] != 0:
                 dc.set_device_offline(cached["nodeId"])
-        # Mark live devices as online
-        for serial in live_serials:
-            dc.set_device_online(serial)
 
         return {"devices": live_devices, "cached": True, "count": len(live_devices)}
     except Exception as e:
