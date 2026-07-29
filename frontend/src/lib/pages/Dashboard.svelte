@@ -187,18 +187,17 @@
               <span class="ml-auto text-slate-600 text-sm">→</span>
             </div>
             <div class="flex items-center gap-2 text-sm mt-auto pb-1">
+              <span class="text-slate-400">{deviceOnline}/{deviceTotal} Online</span>
               {#if opcuaConnected === null}
-                <span class="w-2 h-2 rounded-full bg-yellow-400 animate-pulse"></span>
+                <span class="w-2 h-2 rounded-full bg-yellow-400 animate-pulse ml-auto"></span>
                 <span class="text-slate-400">Prüfe Verbindung…</span>
               {:else if opcuaConnected}
-                <span class="w-2 h-2 rounded-full bg-green-400"></span>
+                <span class="w-2 h-2 rounded-full bg-green-400 ml-auto"></span>
                 <span class="text-green-400">Verbunden</span>
-                <span class="text-slate-500 text-xs ml-2">opc.tcp://10.89.11.52:4840</span>
               {:else}
-                <span class="w-2 h-2 rounded-full bg-red-400"></span>
+                <span class="w-2 h-2 rounded-full bg-red-400 ml-auto"></span>
                 <span class="text-red-400">Nicht verbunden</span>
               {/if}
-              <span class="ml-auto text-slate-400">{deviceOnline}/{deviceTotal} Online</span>
             </div>
           </button>
         </div>
