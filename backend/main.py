@@ -181,26 +181,41 @@ async def check_device_status():
 
 @app.post("/api/opcua/devices/refresh")
 async def refresh_device_cache():
-    """Fetch fresh device list from OPC UA and cache it."""
+    """Fetch fresh device list from OPC UA, merge with persisted cache.
+    Devices in cache but not in live list are marked offline."""
     try:
         data = await opcua.browse_node("ns=3;i=5001")
-        devices = []
+        live_devices = []
+        live_serials = set()
         seen = set()
         for dev in data.get("children", []):
             name = dev.get("name", "?")
-            # Skip known container nodes
             if name in ("DeviceFeatures", "HA Configuration"):
                 continue
             if name in seen:
                 continue
             seen.add(name)
-            devices.append({
+            serial = dev.get("nodeId", name)
+            live_serials.add(serial)
+            live_devices.append({
                 "name": name,
-                "nodeId": dev.get("nodeId", name),
+                "nodeId": serial,
                 "componentName": dev.get("componentName", ""),
             })
-        dc.set_cached_devices(devices)
-        return {"devices": devices, "cached": True, "count": len(devices)}
+
+        # Update/add live devices, preserving componentNames
+        dc.set_cached_devices(live_devices)
+
+        # Mark devices NOT in the live list as offline
+        all_cached = dc.get_cached_devices()
+        for cached in all_cached:
+            if cached["nodeId"] not in live_serials and cached["online"] != 0:
+                dc.set_device_offline(cached["nodeId"])
+        # Mark live devices as online
+        for serial in live_serials:
+            dc.set_device_online(serial)
+
+        return {"devices": live_devices, "cached": True, "count": len(live_devices)}
     except Exception as e:
         logger.error(f"Device refresh failed: {e}")
         raise HTTPException(500, str(e))
