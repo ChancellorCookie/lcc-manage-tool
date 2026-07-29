@@ -9,6 +9,8 @@
   let roomCount = $state(0)
   let serverCount = $state(0)
   let opcuaConnected = $state(null)  // null=checking, true/false
+  let deviceOnline = $state(0)
+  let deviceTotal = $state(0)
   let managerLoading = $state(true)
 
   // Notifier stats
@@ -32,6 +34,13 @@
       const data = await res.json()
       opcuaConnected = data.connected
     } catch { opcuaConnected = false }
+    try {
+      const res = await fetch('/api/opcua/devices/cached')
+      const data = await res.json()
+      const devs = data.devices || []
+      deviceTotal = devs.length
+      deviceOnline = devs.filter(d => d.online === 1).length
+    } catch { /* ignore */ }
     managerLoading = false
   }
 
@@ -162,6 +171,26 @@
                 <span class="w-2 h-2 rounded-full bg-green-400"></span>
                 <span class="text-green-400 text-xs">Verbunden</span>
               </div>
+            </div>
+          </button>
+
+          <!-- Devices Online -->
+          <button class="card w-full text-left hover:border-blue-500/40 transition-colors cursor-pointer flex-1 flex flex-col" onclick={() => navigate('sensors')}>
+            <div class="flex items-center gap-4">
+              <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style="background: rgba(52,211,153,0.15)">
+                <span class="text-lg">{deviceOnline}</span>
+              </div>
+              <div>
+                <h3 class="text-lg font-bold">{deviceOnline}/{deviceTotal} Online</h3>
+                <p class="text-xs text-slate-500">OPC UA Devices &middot; Status aus DeviceSet</p>
+              </div>
+              <span class="ml-auto text-slate-600 text-sm">→</span>
+            </div>
+            <div class="flex items-center gap-2 text-sm mt-auto pb-1">
+              <span class="w-2 h-2 rounded-full"
+                style="background:{deviceOnline === deviceTotal ? '#34d399' : deviceOnline > 0 ? '#fbbf24' : '#f87171'}"
+              ></span>
+              <span class="text-slate-400">{deviceTotal - deviceOnline} offline</span>
             </div>
           </button>
 
