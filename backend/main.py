@@ -195,28 +195,30 @@ async def refresh_device_cache():
             if name in seen:
                 continue
             seen.add(name)
-            serial = dev.get("nodeId", name)
-            live_serials.add(serial)
+            node_id = dev.get("nodeId", name)
+            live_serials.add(dc.stable_key(node_id))
+            serial = node_id
             live_devices.append({
                 "name": name,
                 "nodeId": serial,
                 "componentName": dev.get("componentName", ""),
             })
 
-        # Update/add live devices, preserving componentNames
+        # Update/add live devices, preserving componentNames.
+        # set_cached_devices keys by the stable identifier (string part of the
+        # nodeId) so a volatile ns index can no longer spawn duplicate rows.
         dc.set_cached_devices(live_devices)
 
-        # Mark devices NOT in the live list as offline
+        # Mark devices NOT in the live list as offline (compare stable keys)
         all_cached = dc.get_cached_devices()
         for cached in all_cached:
-            if cached["nodeId"] not in live_serials and cached["online"] != 0:
-                dc.set_device_offline(cached["nodeId"])
+            if cached["serial"] not in live_serials and cached["online"] != 0:
+                dc.set_device_offline(cached["serial"])
 
         return {"devices": dc.get_cached_devices(), "cached": True, "count": len(live_devices)}
     except Exception as e:
         logger.error(f"Device refresh failed: {e}")
         raise HTTPException(500, str(e))
-
 
 # ── Sensor History (LADS API) ───────────────────────────────────
 
