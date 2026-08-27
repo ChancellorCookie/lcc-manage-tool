@@ -87,6 +87,16 @@ channels:
     from_addr: laboperator@iuta.de
     to_addrs:
     - laboperator@iuta.de
+
+offline_monitor:
+  enabled: true
+  threshold_minutes: 30
+  digest_interval_minutes: 60
+  daily_digest: "09:00"
+  check_interval_seconds: 60
+  channels:
+  - email_lab
+
 state:
   db_path: ./data/state.db
 logging:

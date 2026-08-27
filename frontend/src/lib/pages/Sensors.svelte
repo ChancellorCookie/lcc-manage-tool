@@ -13,6 +13,22 @@
   let search = $state('')
   let sortAsc = $state(true)
 
+  async function toggleMonitor(dev, checked) {
+    try {
+      const r = await fetch('/api/opcua/devices/monitor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ serial: dev.serial || dev.nodeId, enabled: checked })
+      })
+      if (!r.ok) throw new Error((await r.json())?.error || 'Fehler')
+      dev.offlineMonitor = checked
+      devices = [...devices]
+    } catch (e) {
+      error = 'Überwachen-Umschalten fehlgeschlagen: ' + e.message
+      devices = [...devices]
+    }
+  }
+
   let filteredDevices = $derived(
     (() => {
       let list = search
@@ -180,6 +196,7 @@
               </th>
               <th class="py-2 px-3 text-right font-medium w-16">NS</th>
               <th class="py-2 px-3 text-left font-medium hidden md:table-cell">Node ID</th>
+              <th class="py-2 px-3 text-center font-medium w-20">Überwachen</th>
             </tr>
           </thead>
           <tbody>
@@ -210,6 +227,12 @@
                 </td>
                 <td class="py-2 px-3 hidden md:table-cell">
                   <code class="text-[0.6rem] text-slate-600">{dev.nodeId}</code>
+                </td>
+                <td class="py-2 px-3 text-center" onclick={(e) => e.stopPropagation()}>
+                  <input type="checkbox"
+                    checked={dev.offlineMonitor}
+                    title="Offline überwachen"
+                    onchange={(e) => toggleMonitor(dev, e.currentTarget.checked)} />
                 </td>
               </tr>
             {/each}

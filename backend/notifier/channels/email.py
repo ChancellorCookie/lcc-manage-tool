@@ -62,6 +62,16 @@ class EmailChannel(Channel):
         msg.set_content(body)
         self._deliver(c, msg)
 
+    def send_raw(self, subject: str, body: str) -> None:
+        """Send an ad-hoc email (used by the offline device monitor)."""
+        c = self.config
+        msg = EmailMessage()
+        msg["From"] = c["from_addr"]
+        msg["To"] = ", ".join(c["to_addrs"])
+        msg["Subject"] = subject
+        msg.set_content(body)
+        self._deliver(c, msg)
+
     @staticmethod
     def _deliver(c, msg):
         host = c["smtp_host"]

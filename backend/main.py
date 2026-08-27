@@ -71,6 +71,16 @@ async def start_notifier():
     except Exception:
         log.exception("Failed to start Incident Notifier (non-fatal)")
 
+    # Offline-Device-Monitor (checkbox-gesteuert, Stunden- + Tages-Digest)
+    try:
+        from backend.offline_monitor import OfflineMonitor
+
+        offline_monitor = OfflineMonitor("config/config.yaml")
+        asyncio.create_task(offline_monitor.run())
+        log.info("Offline-Device-Monitor background task started")
+    except Exception:
+        log.exception("Failed to start Offline-Device-Monitor (non-fatal)")
+
 
 # ── Error handler ─────────────────────────────────────────────────
 
@@ -219,6 +229,22 @@ async def refresh_device_cache():
     except Exception as e:
         logger.error(f"Device refresh failed: {e}")
         raise HTTPException(500, str(e))
+
+
+@app.post("/api/opcua/devices/monitor")
+async def set_device_monitor(body: dict):
+    """Enable/disable offline monitoring for a device (Sensors-tab checkbox)."""
+    serial = body.get("serial", "")
+    enabled = bool(body.get("enabled", False))
+    if not serial:
+        raise HTTPException(400, "serial required")
+    stable = dc.stable_key(serial)
+    cached = dc.get_cached_devices()
+    if not any(c["serial"] == stable for c in cached):
+        raise HTTPException(404, "device not found")
+    dc.set_offline_monitor(stable, enabled)
+    return {"serial": stable, "offlineMonitor": enabled}
+
 
 # ── Sensor History (LADS API) ───────────────────────────────────
 

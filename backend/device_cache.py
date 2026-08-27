@@ -30,6 +30,19 @@ def stable_key(node_id: str) -> str:
 _stable_key = stable_key  # backward-compat alias
 
 
+def _ensure_columns(conn: sqlite3.Connection) -> None:
+    """Add the offline-monitoring columns if this DB predates them."""
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(device_list)").fetchall()}
+    adds = {
+        "offline_monitor": "INTEGER DEFAULT 0",
+        "offline_since": "REAL",
+        "first_alerted": "INTEGER DEFAULT 0",
+    }
+    for name, ddl in adds.items():
+        if name not in cols:
+            conn.execute(f"ALTER TABLE device_list ADD COLUMN {name} {ddl}")
+
+
 def _get_db() -> sqlite3.Connection:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(DB_PATH))
@@ -53,6 +66,7 @@ def _get_db() -> sqlite3.Connection:
             last_updated REAL
         )
     """)
+    _ensure_columns(conn)
     conn.commit()
     return conn
 
@@ -113,11 +127,15 @@ def get_cached_devices() -> list[dict]:
     """
     conn = _get_db()
     rows = conn.execute(
-        "SELECT serial, name, node_id, component_name, online, last_seen, last_updated FROM device_list ORDER BY serial"
+        "SELECT serial, name, node_id, component_name, online, last_seen, last_updated, offline_monitor, offline_since, first_alerted FROM device_list ORDER BY serial"
     ).fetchall()
     conn.close()
     return [
-        {"serial": r[0], "name": r[1], "nodeId": r[2] or r[0], "componentName": r[3] or "", "online": r[4], "lastSeen": r[5], "lastUpdated": r[6]}
+        {
+            "serial": r[0], "name": r[1], "nodeId": r[2] or r[0], "componentName": r[3] or "",
+            "online": r[4], "lastSeen": r[5], "lastUpdated": r[6],
+            "offlineMonitor": bool(r[7]), "offlineSince": r[8], "firstAlerted": bool(r[9]),
+        }
         for r in rows
     ]
 
@@ -163,6 +181,78 @@ def set_cached_devices(devices: list[dict]):
     conn.close()
 
 
+# ── Online state + offline monitoring ──────────────────────────────
+
+def _get_row(conn, serial: str):
+    return conn.execute(
+        "SELECT online, offline_since, offline_monitor, first_alerted FROM device_list WHERE serial = ?",
+        (serial,),
+    ).fetchone()
+
+
+def set_device_online(serial: str):
+    conn = _get_db()
+    now = time.time()
+    conn.execute(
+        "UPDATE device_list SET online = 1, last_seen = ?, last_updated = ?, offline_since = NULL, first_alerted = 0 WHERE serial = ?",
+        (now, now, _stable_key(serial)),
+    )
+    conn.commit()
+    conn.close()
+
+
+def set_device_offline(serial: str):
+    """Mark a device offline, recording offline_since only on the online->offline transition."""
+    conn = _get_db()
+    now = time.time()
+    serial = _stable_key(serial)
+    row = conn.execute("SELECT online, offline_since FROM device_list WHERE serial = ?", (serial,)).fetchone()
+    if row is not None:
+        was_online = row[0] == 1
+        existing_off = row[1]
+        # record offline_since on first transition only (don't keep overwriting)
+        offline_since = existing_off or now
+        conn.execute(
+            "UPDATE device_list SET online = 0, last_updated = ?, offline_since = ? WHERE serial = ?",
+            (now, offline_since, serial),
+        )
+    conn.commit()
+    conn.close()
+
+
+def set_offline_monitor(serial: str, enabled: bool):
+    conn = _get_db()
+    conn.execute("UPDATE device_list SET offline_monitor = ?, last_updated = ? WHERE serial = ?",
+                 (1 if enabled else 0, time.time(), _stable_key(serial)))
+    conn.commit()
+    conn.close()
+
+
+def get_monitored_devices() -> list[dict]:
+    """All devices with offline_monitor enabled (used by the offline monitor)."""
+    conn = _get_db()
+    rows = conn.execute(
+        "SELECT serial, name, node_id, online, offline_since, first_alerted FROM device_list WHERE offline_monitor = 1 ORDER BY name"
+    ).fetchall()
+    conn.close()
+    return [
+        {
+            "serial": r[0], "name": r[1], "nodeId": r[2], "online": r[3],
+            "offlineSince": r[4], "firstAlerted": bool(r[5]),
+        }
+        for r in rows
+    ]
+
+
+def mark_first_alerted(serials: list[str]):
+    conn = _get_db()
+    with conn:  # autocommit transaction
+        for s in serials:
+            conn.execute("UPDATE device_list SET first_alerted = 1, last_updated = ? WHERE serial = ?",
+                         (time.time(), _stable_key(s)))
+    conn.close()
+
+
 def set_component_name(serial: str, component_name: str):
     """Update the component name for a cached device (keyed by stable serial)."""
     serial = _stable_key(serial)
@@ -171,21 +261,5 @@ def set_component_name(serial: str, component_name: str):
         "UPDATE device_list SET component_name = ?, last_updated = ? WHERE serial = ?",
         (component_name, time.time(), serial)
     )
-    conn.commit()
-    conn.close()
-
-
-def set_device_online(serial: str):
-    conn = _get_db()
-    conn.execute("UPDATE device_list SET online = 1, last_seen = ?, last_updated = ? WHERE serial = ?",
-                 (time.time(), time.time(), _stable_key(serial)))
-    conn.commit()
-    conn.close()
-
-
-def set_device_offline(serial: str):
-    conn = _get_db()
-    conn.execute("UPDATE device_list SET online = 0, last_updated = ? WHERE serial = ?",
-                 (time.time(), _stable_key(serial)))
     conn.commit()
     conn.close()
