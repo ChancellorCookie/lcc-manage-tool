@@ -64,6 +64,7 @@ def _channel_map(cfg: dict):
 
 class OfflineMonitor:
     def __init__(self, config_path: str):
+        self.config_path = config_path
         self.cfg = load_config(config_path)
         om = {**_DEFAULTS, **(self.cfg.get("offline_monitor") or {})}
         self.enabled = bool(om["enabled"])
@@ -78,6 +79,15 @@ class OfflineMonitor:
         self._last_hourly = 0.0
         self._last_daily_date = None
         self._running = True
+
+    def _reload_threshold(self):
+        """Pick up a UI-changed offline threshold without a container restart."""
+        cfg = load_config(self.config_path)
+        om = cfg.get("offline_monitor") or {}
+        try:
+            self.threshold_minutes = int(om.get("threshold_minutes", self.threshold_minutes))
+        except (TypeError, ValueError):
+            pass
 
     @property
     def channels(self):
@@ -140,6 +150,7 @@ class OfflineMonitor:
 
     async def tick(self):
         """One monitor pass. Returns nothing; sends digests when due."""
+        self._reload_threshold()
         if not self.enabled:
             return
         devices = dc.get_monitored_devices()
@@ -168,13 +179,15 @@ class OfflineMonitor:
                 # no new due devices -> skip this hourly window silently
                 self._last_hourly = now
 
-        # Daily digest at configured time (once per day)
+        # Daily digest at configured time (once per day). Skip the day silently
+        # when there are no monitored devices offline — no mail for "all ok".
         today = datetime.now().date().isoformat()
         hhmm = datetime.now().strftime("%H:%M")
         if self._last_daily_date != today and hhmm >= self.daily_time:
             daily_offline = offline
-            subject = f"[OFFLINE-TAGESBERICHT] {len(daily_offline)} überwachte Geräte offline"
-            self._send_raw(subject, self._build_daily_body(daily_offline))
+            if daily_offline:
+                subject = f"[OFFLINE-TAGESBERICHT] {len(daily_offline)} überwachte Geräte offline"
+                self._send_raw(subject, self._build_daily_body(daily_offline))
             self._last_daily_date = today
 
     async def run(self):

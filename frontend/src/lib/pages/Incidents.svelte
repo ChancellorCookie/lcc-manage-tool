@@ -132,6 +132,7 @@
   let immediateSeverities = $state('')
   let notifyResolved = $state(false)
   let stateDbPath = $state('')
+  let offlineThreshold = $state(30)
 
   // Channel management
   let showAddChannel = $state(false)
@@ -166,6 +167,7 @@
       immediateSeverities = (config?.escalation?.immediate || []).join(', ')
       notifyResolved = config?.escalation?.notify_on_resolved || false
       stateDbPath = config?.state?.db_path || ''
+      offlineThreshold = config?.offline_monitor?.threshold_minutes || 30
     } catch (e) { cfgError = e.message }
     cfgLoading = false
   }
@@ -188,6 +190,8 @@
     body.escalation.immediate = immediateSeverities.split(',').map(s => s.trim()).filter(Boolean)
     body.escalation.notify_on_resolved = notifyResolved
     body.state.db_path = stateDbPath
+    body.offline_monitor = body.offline_monitor || {}
+    body.offline_monitor.threshold_minutes = offlineThreshold
     try {
       await api.notifier.saveConfig(body)
       config = body
@@ -489,6 +493,15 @@
               <input type="checkbox" bind:checked={notifyResolved} class="!w-auto" />
               <label class="!mb-0 text-xs text-slate-400">Entwarnung bei Resolved</label>
             </div>
+          </div>
+        </div>
+
+        <!-- Offline-Device-Überwachung -->
+        <div class="card">
+          <h3 class="font-semibold mb-3 flex items-center gap-2"><Icon name="incidents" size={18} /> Offline-Device-Überwachung</h3>
+          <div class="space-y-3">
+            <div><label class="text-xs text-slate-500">Offline-Schwelle (Minuten)</label><input type="number" min="1" bind:value={offlineThreshold} /></div>
+            <p class="text-xs text-slate-600">Ab dieser Offline-Dauer gilt ein überwachtes Gerät als fällig und wird in den Digests gemeldet.</p>
           </div>
         </div>
 
