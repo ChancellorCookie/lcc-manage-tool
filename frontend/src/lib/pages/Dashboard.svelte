@@ -17,6 +17,7 @@
   let notifierStats = $state(null)
   let notifierLoading = $state(true)
   let notifierError = $state('')
+  let offlineStats = $state(null)
 
   let pollTimer = $state(null)
 
@@ -51,6 +52,10 @@
     } catch (e) {
       notifierError = e.message
     }
+    try {
+      const r = await fetch('/api/opcua/devices/offline/due')
+      offlineStats = await r.json()
+    } catch { offlineStats = offlineStats }
     notifierLoading = false
   }
 
@@ -69,7 +74,7 @@
     { label: 'Digest pending', value: notifierStats?.digest_pending ?? '…', icon: 'notifier', color: 'rgba(251,191,36,0.15)', click: () => navigate('incidents') },
     { label: 'Kanäle aktiv', value: notifierStats?.channels ?? '…', icon: 'gateways', color: 'rgba(96,165,250,0.15)', click: () => navTab?.('incidents', 'settings') },
     { label: 'Gesendet', value: notifierStats?.total_sent ?? '…', icon: 'notifier', color: 'rgba(5,150,105,0.15)', click: () => navTab?.('incidents', 'history') },
-    { label: 'Templates', value: '✏', icon: 'sensors', color: 'rgba(34,211,238,0.15)', click: () => navTab?.('incidents', 'templates') },
+    { label: 'Offline fällig (fällig/gesamt)', value: offlineStats ? String(offlineStats.due) + '/' + String(offlineStats.offline) : '…', icon: 'sensors', color: 'rgba(239,68,68,0.15)', click: () => navigate('sensors') },
     { label: 'Einstellungen', value: '⚙', icon: 'dashboard', color: 'rgba(139,92,246,0.15)', click: () => navTab?.('incidents', 'settings') },
   ])
 </script>

@@ -246,6 +246,14 @@ async def set_device_monitor(body: dict):
     return {"serial": stable, "offlineMonitor": enabled}
 
 
+@app.get("/api/opcua/devices/offline/due")
+async def offline_due_stats():
+    """Offline-monitoring stats for the dashboard tile (offline + due counts)."""
+    from backend.offline_monitor import offline_stats
+
+    return offline_stats("config/config.yaml")
+
+
 # ── Sensor History (LADS API) ───────────────────────────────────
 
 from backend.auth import get_token as _get_token

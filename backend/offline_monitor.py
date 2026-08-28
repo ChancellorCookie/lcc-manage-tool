@@ -19,6 +19,9 @@ import asyncio
 import logging
 import time
 from datetime import datetime
+from zoneinfo import ZoneInfo
+
+TZ = ZoneInfo("Europe/Berlin")
 
 from . import device_cache as dc
 from .notifier.channels import build_channel
@@ -36,10 +39,14 @@ _DEFAULTS = {
 }
 
 
+def _now():
+    return datetime.now(TZ)
+
+
 def _fmt_ts(ts):
     if not ts:
         return "?"
-    return datetime.fromtimestamp(ts).strftime("%d.%m.%Y %H:%M")
+    return datetime.fromtimestamp(ts, TZ).strftime("%d.%m.%Y %H:%M")
 
 
 def _fmt_duration(seconds):
@@ -59,6 +66,35 @@ def _channel_map(cfg: dict):
     return {
         name: build_channel(name, ccfg)
         for name, ccfg in cfg.get("channels", {}).items()
+    }
+
+
+def offline_stats(config_path: str) -> dict:
+    """Return offline-monitoring stats for the dashboard tile.
+
+    Reads the threshold live from config (so a UI change is reflected) and
+    reports both the number of monitored devices currently offline and how
+    many of those have already crossed the threshold (due).
+    """
+    cfg = load_config(config_path)
+    om = {**_DEFAULTS, **(cfg.get("offline_monitor") or {})}
+    threshold_minutes = int(om.get("threshold_minutes", 30))
+    devices = dc.get_monitored_devices()
+    now = time.time()
+    offline = [d for d in devices if d["online"] == 0]
+    due = [
+        d for d in offline
+        if d["offlineSince"]
+        and (now - d["offlineSince"]) >= threshold_minutes * 60
+    ]
+    return {
+        "offline": len(offline),
+        "due": len(due),
+        "thresholdMinutes": threshold_minutes,
+        "devices": [
+            {"serial": d["serial"], "name": d["name"], "offlineSince": d["offlineSince"]}
+            for d in offline
+        ],
     }
 
 
@@ -115,7 +151,7 @@ class OfflineMonitor:
     def _build_hourly_body(self, due_serials, monitored_offline):
         now = time.time()
         lines = ["Offline-Digest — neue fällige Geräte:\n"]
-        lines.append(f"Stand: {datetime.fromtimestamp(now).strftime('%d.%m.%Y %H:%M')}\n")
+        lines.append(f"Stand: {datetime.fromtimestamp(now, TZ).strftime('%d.%m.%Y %H:%M')}\n")
         lines.append("Neu fällig (Schwelle überschritten):")
         if due_serials:
             for d in due_serials:
@@ -136,7 +172,7 @@ class OfflineMonitor:
     def _build_daily_body(self, monitored_offline):
         now = time.time()
         lines = ["Täglicher Offline-Bericht — überwachte Geräte", ""]
-        lines.append(f"Stand: {datetime.fromtimestamp(now).strftime('%d.%m.%Y %H:%M')}\n")
+        lines.append(f"Stand: {datetime.fromtimestamp(now, TZ).strftime('%d.%m.%Y %H:%M')}\n")
         if monitored_offline:
             lines.append(f"{len(monitored_offline)} überwachte Geräte offline:")
             for d in monitored_offline:
@@ -181,8 +217,8 @@ class OfflineMonitor:
 
         # Daily digest at configured time (once per day). Skip the day silently
         # when there are no monitored devices offline — no mail for "all ok".
-        today = datetime.now().date().isoformat()
-        hhmm = datetime.now().strftime("%H:%M")
+        today = _now().date().isoformat()
+        hhmm = _now().strftime("%H:%M")
         if self._last_daily_date != today and hhmm >= self.daily_time:
             daily_offline = offline
             if daily_offline:

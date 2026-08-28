@@ -13,6 +13,9 @@ import logging
 import os
 from dataclasses import asdict
 from datetime import datetime
+from zoneinfo import ZoneInfo
+
+TZ = ZoneInfo("Europe/Berlin")
 from pathlib import Path
 from typing import Optional
 
@@ -74,7 +77,7 @@ def _build_stats(cfg: dict, state: StateStore) -> dict:
     recent = []
     for item in history[:10]:
         recent.append({
-            "time": datetime.fromtimestamp(item["sent_at"]).strftime("%d.%m.%Y %H:%M:%S"),
+            "time": datetime.fromtimestamp(item["sent_at"], TZ).strftime("%d.%m.%Y %H:%M:%S"),
             "incident": item.get("incident_title") or item["incident_id"][:12],
             "severity": item.get("severity", "-"),
             "channel": item.get("channel", "-"),
@@ -88,8 +91,8 @@ def _build_stats(cfg: dict, state: StateStore) -> dict:
         "digest_pending": len(digest_pending),
         "total_sent": len(history),
         "channels": len(cfg.get("channels", {})),
-        "last_time": datetime.fromtimestamp(last["sent_at"]).strftime("%H:%M") if last else "-",
-        "last_date": datetime.fromtimestamp(last["sent_at"]).strftime("%d.%m.%Y") if last else "",
+        "last_time": datetime.fromtimestamp(last["sent_at"], TZ).strftime("%H:%M") if last else "-",
+        "last_date": datetime.fromtimestamp(last["sent_at"], TZ).strftime("%d.%m.%Y") if last else "",
         "recent": recent,
     }
 

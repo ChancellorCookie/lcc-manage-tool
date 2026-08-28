@@ -17,6 +17,9 @@ import socket
 import yaml
 from email.message import EmailMessage
 from datetime import datetime
+from zoneinfo import ZoneInfo
+
+TZ = ZoneInfo("Europe/Berlin")
 
 
 CONF_PATH = os.environ.get(
@@ -112,7 +115,7 @@ def send_crash_alert(exit_status: str = "unknown", config_path: str = CONF_PATH,
     name, ch = found
 
     hostname = socket.gethostname()
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now = datetime.now(TZ).strftime("%Y-%m-%d %H:%M:%S")
     msg = _build_message(ch, exit_status, hostname, now)
 
     try:
