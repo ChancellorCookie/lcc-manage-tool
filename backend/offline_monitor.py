@@ -68,6 +68,14 @@ def _display_name(d: dict) -> str:
     return (d.get("componentName") or d.get("name") or d.get("serial") or "?")
 
 
+def _loc(d: dict) -> str:
+    """Hierarchical location without the leading IEU/ prefix, if present."""
+    loc = (d.get("hierarchicalLocation") or "").strip()
+    if loc.lower().startswith("ieu/"):
+        loc = loc[4:]
+    return loc
+
+
 def _channel_map(cfg: dict):
     return {
         name: build_channel(name, ccfg)
@@ -172,7 +180,7 @@ class OfflineMonitor:
         if due_serials:
             for d in due_serials:
                 dur = now - d["offlineSince"] if d["offlineSince"] else 0
-                lines.append(f"  - {_display_name(d)} ({d['serial']}) — offline seit {_fmt_ts(d['offlineSince'])} ({_fmt_duration(dur)})")
+                lines.append(f"  - {_display_name(d)} ({d['serial']}) — offline seit {_fmt_ts(d['offlineSince'])} ({_fmt_duration(dur)})" + (f"  [{_loc(d)}]" if _loc(d) else ""))
         else:
             lines.append("  (keine)")
         lines.append("")
@@ -180,7 +188,7 @@ class OfflineMonitor:
         if monitored_offline:
             for d in monitored_offline:
                 dur = now - d["offlineSince"] if d["offlineSince"] else 0
-                lines.append(f"  - {_display_name(d)} ({d['serial']}) — offline seit {_fmt_ts(d['offlineSince'])} ({_fmt_duration(dur)})")
+                lines.append(f"  - {_display_name(d)} ({d['serial']}) — offline seit {_fmt_ts(d['offlineSince'])} ({_fmt_duration(dur)})" + (f"  [{_loc(d)}]" if _loc(d) else ""))
         else:
             lines.append("  (keine)")
         return "\n".join(lines)
@@ -193,7 +201,7 @@ class OfflineMonitor:
             lines.append(f"{len(monitored_offline)} überwachte Geräte offline:")
             for d in monitored_offline:
                 dur = now - d["offlineSince"] if d["offlineSince"] else 0
-                lines.append(f"  - {_display_name(d)} ({d['serial']}) — offline seit {_fmt_ts(d['offlineSince'])} ({_fmt_duration(dur)})")
+                lines.append(f"  - {_display_name(d)} ({d['serial']}) — offline seit {_fmt_ts(d['offlineSince'])} ({_fmt_duration(dur)})" + (f"  [{_loc(d)}]" if _loc(d) else ""))
         else:
             lines.append("Alle überwachten Geräte sind online.")
         return "\n".join(lines)

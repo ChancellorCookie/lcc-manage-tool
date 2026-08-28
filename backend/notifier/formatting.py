@@ -17,6 +17,22 @@ nicht betroffen - sie nutzen template_variables().
 from .models import Incident
 
 
+def _location_for(inc: Incident) -> str:
+    """Hierarchical location without the leading IEU/ prefix (existing data)."""
+    try:
+        from .. import device_cache as dc
+        serial = inc.device_name or ""
+        for d in dc.get_cached_devices():
+            if d["serial"] == serial or d["nodeId"].endswith(serial):
+                loc = (d.get("hierarchicalLocation") or "").strip()
+                if loc.lower().startswith("ieu/"):
+                    loc = loc[4:]
+                return loc
+    except Exception:
+        pass
+    return ""
+
+
 def _component_name_for(inc: Incident) -> str:
     """Look up the cached component name for a device (existing data only).
 
@@ -53,7 +69,7 @@ PLACEHOLDER_GROUPS: list[tuple[str, list[str]]] = [
         "source", "device_name", "component_name", "event_id",
     ]),
     ("Raum", [
-        "room_name", "room_number",
+        "room_name", "room_number", "location",
         "room_contact_name", "room_contact_email", "room_contact_details",
     ]),
     ("Status-Flags", [
@@ -90,6 +106,7 @@ PLACEHOLDER_HELP: dict[str, str] = {
     "room_contact_name": "Ansprechpartner (z.B. Moriz Walter)",
     "room_contact_email": "E-Mail des Ansprechpartners",
     "room_contact_details": "Durchwahl/Details (z.B. T.345)",
+    "location": "Hierarchischer Standort ohne IEU/ (z.B. R111-114)",
     # Status-Flags
     "flags": "Status-Flags als Text (Quittiert, Bestaetigt, ...)",
     "flap_count": "Flatter-Zaehler (0 = kein Flattern)",
@@ -120,10 +137,9 @@ PLACEHOLDER_HELP: dict[str, str] = {
 _ALERT_SUBJECT_DEFAULT = "[{severity_label}] [{room_name}] {title}"
 _ALERT_BODY_DEFAULT = """Severity:    {severity_label}
 Titel:       {title}
-Raum:        {room_name} ({room_number})
-Kontakt:     {room_contact_name} ({room_contact_email}, {room_contact_details})
+Geraet:      {component_name}
+Ort:         {location}
 Quelle:      {source}
-Geraet:      {component_name}{device_name}
 Zeitpunkt:   {timestamp}
 Status:      {status}
 Incident-ID: {id}
@@ -133,9 +149,6 @@ Incident-ID: {id}
 
 Zum Quittieren oeffnen: {url}
 
-HANDLUNGSEMPFEHLUNG:
-{help}
-
 Beschreibung:
 {description}"""
 
@@ -143,9 +156,9 @@ _RESOLVED_SUBJECT_DEFAULT = "[ENTWARNUNG] [{room_name}] {title}"
 _RESOLVED_BODY_DEFAULT = """Der folgende Vorfall ist nicht mehr offen (quittiert oder geschlossen):
 
 Titel:       {title}
-Raum:        {room_name} ({room_number})
+Geraet:      {component_name}
+Ort:         {location}
 Quelle:      {source}
-Geraet:      {component_name}{device_name}
 Incident-ID: {id}"""
 
 
@@ -188,6 +201,7 @@ SAMPLE_VALUES: dict[str, str] = {
     "room_contact_name": "Moriz Walter",
     "room_contact_email": "m.walter@ieu.local",
     "room_contact_details": "T.345",
+    "location": "R111-114",
 }
 
 
@@ -274,6 +288,7 @@ def _build_vals(inc: Incident) -> dict:
         "room_contact_name": inc.room_contact_name,
         "room_contact_email": inc.room_contact_email,
         "room_contact_details": inc.room_contact_details,
+        "location": _location_for(inc),
     }
 
 

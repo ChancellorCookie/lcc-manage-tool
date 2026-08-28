@@ -128,3 +128,56 @@ def _node_to_str(nodeid) -> str:
     if isinstance(ident, int):
         return f"ns={ns};i={ident}"
     return f"ns={ns};s={ident}"
+
+
+async def read_component_meta(node_id: str) -> dict:
+    """Read the human-readable device name + hierarchical location.
+
+    Strategy (robust against device variance):
+      - component name: prefer the DIRECT '-ComponentName' child under the
+        device root (e.g. 'Gefrierschrank 1004 - SO1DM500100'); fall back to
+        'Identification-ComponentName'. A LocalizedText wrapper (which only
+        repeats the serial) is treated as empty.
+      - location: read 'HierarchicalLocation' and drop a leading 'IEU/' prefix.
+
+    Returns {"componentName": str, "hierarchicalLocation": str}; values are
+    "" on any failure so the caller can keep prior/cache values.
+    """
+    client = await get_client()
+    out = {"componentName": "", "hierarchicalLocation": ""}
+
+    def _plain(value) -> str:
+        if value is None:
+            return ""
+        s = str(value)
+        if s.startswith("LocalizedText"):
+            return ""
+        return s
+
+    async def _read(rel: str):
+        node = client.get_node(f"{node_id}-{rel}")
+        v = await node.read_value()
+        return _plain(v)
+
+    try:
+        raw = await _read("ComponentName")
+        if raw:
+            out["componentName"] = raw
+    except Exception:
+        pass
+
+    if not out["componentName"]:
+        try:
+            raw = await _read("Identification-ComponentName")
+            out["componentName"] = _plain(raw)
+        except Exception:
+            pass
+
+    try:
+        loc = await _read("HierarchicalLocation")
+        if loc:
+            out["hierarchicalLocation"] = loc.removeprefix("IEU/").removeprefix("ieu/")
+    except Exception:
+        pass
+
+    return out

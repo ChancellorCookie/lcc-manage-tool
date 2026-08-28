@@ -219,6 +219,22 @@ async def refresh_device_cache():
         # nodeId) so a volatile ns index can no longer spawn duplicate rows.
         dc.set_cached_devices(live_devices)
 
+        # Enrich: read the human-readable component name + hierarchical
+        # location from OPC UA and persist them (only existing data, used by
+        # templates and offline digest bodies).
+        try:
+            import asyncio as _aio
+            for dev in live_devices[:40]:
+                node_id = dev["nodeId"]
+                # skip devices that already have a persisted component name
+                meta = await opcua.read_component_meta(node_id)
+                if meta.get("componentName") or meta.get("hierarchicalLocation"):
+                    dc.set_device_meta(dev["name"].split("@")[0],
+                                       component_name=meta.get("componentName") or None,
+                                       hierarchical_location=meta.get("hierarchicalLocation") or None)
+        except Exception:
+            logger.exception("Refresh component-name enrichment fehlgeschlagen (non-fatal)")
+
         # Mark devices NOT in the live list as offline (compare stable keys)
         all_cached = dc.get_cached_devices()
         for cached in all_cached:

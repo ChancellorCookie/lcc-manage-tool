@@ -37,6 +37,7 @@ def _ensure_columns(conn: sqlite3.Connection) -> None:
         "offline_monitor": "INTEGER DEFAULT 0",
         "offline_since": "REAL",
         "first_alerted": "INTEGER DEFAULT 0",
+        "hierarchical_location": "TEXT",
     }
     for name, ddl in adds.items():
         if name not in cols:
@@ -126,8 +127,9 @@ def get_cached_devices() -> list[dict]:
     while `serial` serves as the stable key.
     """
     conn = _get_db()
+    cols = [x[1] for x in conn.execute("PRAGMA table_info(device_list)").fetchall()]
     rows = conn.execute(
-        "SELECT serial, name, node_id, component_name, online, last_seen, last_updated, offline_monitor, offline_since, first_alerted FROM device_list ORDER BY serial"
+        "SELECT serial, name, node_id, component_name, online, last_seen, last_updated, offline_monitor, offline_since, first_alerted, hierarchical_location FROM device_list ORDER BY serial"
     ).fetchall()
     conn.close()
     return [
@@ -135,6 +137,7 @@ def get_cached_devices() -> list[dict]:
             "serial": r[0], "name": r[1], "nodeId": r[2] or r[0], "componentName": r[3] or "",
             "online": r[4], "lastSeen": r[5], "lastUpdated": r[6],
             "offlineMonitor": bool(r[7]), "offlineSince": r[8], "firstAlerted": bool(r[9]),
+            "hierarchicalLocation": r[10] or "" if "hierarchical_location" in cols else "",
         }
         for r in rows
     ]
@@ -228,17 +231,39 @@ def set_offline_monitor(serial: str, enabled: bool):
     conn.close()
 
 
+def set_device_meta(serial: str, component_name: str | None = None,
+                   hierarchical_location: str | None = None):
+    """Persist component name + hierarchical location for a device."""
+    conn = _get_db()
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(device_list)").fetchall()}
+    sets = ["last_updated = ?"]
+    args = [time.time()]
+    if component_name is not None:
+        sets.append("component_name = ?")
+        args.append(component_name)
+    if hierarchical_location is not None and "hierarchical_location" in cols:
+        sets.append("hierarchical_location = ?")
+        args.append(hierarchical_location)
+    args.append(_stable_key(serial))
+    conn.execute(f"UPDATE device_list SET {', '.join(sets)} WHERE serial = ?", args)
+    conn.commit()
+    conn.close()
+
+
 def get_monitored_devices() -> list[dict]:
     """All devices with offline_monitor enabled (used by the offline monitor)."""
     conn = _get_db()
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(device_list)").fetchall()}
+    hloc = "hierarchical_location" in cols
     rows = conn.execute(
-        "SELECT serial, name, node_id, component_name, online, offline_since, first_alerted FROM device_list WHERE offline_monitor = 1 ORDER BY name"
+        "SELECT serial, name, node_id, component_name, online, offline_since, first_alerted, hierarchical_location FROM device_list WHERE offline_monitor = 1 ORDER BY name"
     ).fetchall()
     conn.close()
     return [
         {
             "serial": r[0], "name": r[1], "nodeId": r[2], "componentName": r[3] or "",
             "online": r[4], "offlineSince": r[5], "firstAlerted": bool(r[6]),
+            "hierarchicalLocation": r[7] or "" if hloc else "",
         }
         for r in rows
     ]
