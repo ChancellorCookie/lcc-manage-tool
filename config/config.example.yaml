@@ -1,15 +1,24 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# LCC Tools — Beispiel-Konfiguration
+# Kopiere dies nach config/config.yaml und trage deine echten Werte ein.
+# Geheimnisse (Passwörter, Tokens) gehören NICHT in die Datei, sondern als
+# ${VAR} (werden aus der Umgebung eingesetzt, siehe backend/notifier/config.py).
+#
+# Verwendet für: Incident-Benachrichtigungen + Offline-Device-Monitor.
+# ─────────────────────────────────────────────────────────────────────────────
+
 poll:
-  url: https://10.89.11.52/api/v2/incidents
+  url: https://<HOST>/api/v2/incidents
   method: GET
   interval_seconds: 30
   timeout_seconds: 10
   verify_tls: false
   query_params:
     active: 'true'
-  incident_url_template: https://10.89.11.52/error-history
+  incident_url_template: https://<HOST>/error-history
   auth:
     type: oauth2
-    token_url: https://lcc.ieu.local/oauth/token
+    token_url: https://<HOST>/oauth/token
     client_id: ''
     client_secret: ''
     scope: openid audience:server:client_id:lcc-api
@@ -53,9 +62,10 @@ poll:
     url_template: '{base_url}/lads/alarms/{incident_id}/report'
   rooms:
     enabled: true
-    url: https://10.89.11.52/api/v2/rooms
+    url: https://<HOST>/api/v2/rooms
     items_path: data
     cache_seconds: 300
+
 escalation:
   notify_on_resolved: false
   immediate:
@@ -75,36 +85,51 @@ escalation:
     - after_minutes: 0
       channels:
       - email_lab
+
 channels:
   email_lab:
     type: email
-    smtp_host: host265.alfahosting-server.de
+    smtp_host: <SMTP_HOST>
     smtp_port: 465
     use_ssl: true
     use_starttls: false
     username: ''
     password: ''
-    from_addr: laboperator@iuta.de
+    from_addr: <VON_ADRESSE>
     to_addrs:
-    - laboperator@iuta.de
+    - <EMPFAENGER_1>
+    - <EMPFAENGER_2>          # mehrere Empfänger = mehrere Listeneinträge (NICHT Semikolon!)
 
 offline_monitor:
   enabled: true
-  threshold_minutes: 30
-  digest_interval_minutes: 60
-  daily_digest: "09:00"
+  threshold_minutes: 30       # ab dieser Offline-Dauer ist ein Gerät fällig
+  digest_interval_minutes: 60 # Stunden-Digest (nur wenn neue fällige Geräte)
+  daily_digest: "09:00"       # Tagesbericht (nur wenn überwachte Geräte offline)
   check_interval_seconds: 60
   channels:
   - email_lab
 
 state:
   db_path: ./data/state.db
+
 logging:
   level: INFO
+
 webui:
   enabled: true
   host: 0.0.0.0
   port: 5080
+
+# ── Nachrichtentemplates ─────────────────────────────────────────────────────
+# Platzhalter: siehe backend/notifier/formatting.py (PLACEHOLDER_GROUPS).
+#  {component_name} = sprechender Gerätename aus OPC UA (z.B. "Gefrierschrank 1004")
+#  {location}       = Hierarchischer Standort ohne 'IEU/' (z.B. "R111-114")
+#  {severity_label} = Severity als Label (z.B. WARNUNG)
+#  {url}            = Link zur Fehlerhistorie
+#
+# Felder, die du NICHT in der Mail willst, einfach weglassen (kein Kontakt,
+# keine Handlungsempfehlung, etc.). Fanf gespeicherte Templates auf dem Host
+# überschreiben diese Defaults — diese hier sind die wiederholbare Referenz.
 templates:
   alert_subject: "[{severity_label}] [{location}] {title}"
   alert_body: |
