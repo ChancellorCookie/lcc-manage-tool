@@ -16,6 +16,23 @@ nicht betroffen - sie nutzen template_variables().
 """
 from .models import Incident
 
+
+def _component_name_for(inc: Incident) -> str:
+    """Look up the cached component name for a device (existing data only).
+
+    Uses the device_cache if present; returns "" when the name was never
+    persisted (no live OPC-UA resolution during send).
+    """
+    try:
+        from .. import device_cache as dc
+        serial = inc.device_name or ""
+        for d in dc.get_cached_devices():
+            if d["serial"] == serial or d["nodeId"].endswith(serial):
+                return d.get("componentName") or ""
+    except Exception:
+        pass
+    return ""
+
 # Severity -> Anzeige-Label.
 # LCC bündelt "error" mit "kritisch" (alle Vorfälle, die Handeln erfordern),
 # darum zeigen error und critical denselben Label.
@@ -33,7 +50,7 @@ PLACEHOLDER_GROUPS: list[tuple[str, list[str]]] = [
         "severity", "severity_label",
         "max_severity", "max_severity_label",
         "title", "description", "status", "timestamp", "id",
-        "source", "device_name", "event_id",
+        "source", "device_name", "component_name", "event_id",
     ]),
     ("Raum", [
         "room_name", "room_number",
@@ -65,6 +82,7 @@ PLACEHOLDER_HELP: dict[str, str] = {
     "id": "Incident-ID (UUID)",
     "source": "Quelle (Context-Pfad, z.B. DeviceSet/S1-1016939/...)",
     "device_name": "Geraetename (aus Context extrahiert, z.B. S1-1016939)",
+    "component_name": "Komponentenname aus dem Geräte-Cache (z.B. Kühleinheit), falls persistiert",
     "event_id": "Ausloesendes Event",
     # Raum
     "room_name": "Raumname (z.B. Entwicklungslabor)",
@@ -105,7 +123,7 @@ Titel:       {title}
 Raum:        {room_name} ({room_number})
 Kontakt:     {room_contact_name} ({room_contact_email}, {room_contact_details})
 Quelle:      {source}
-Geraet:      {device_name}
+Geraet:      {component_name}{device_name}
 Zeitpunkt:   {timestamp}
 Status:      {status}
 Incident-ID: {id}
@@ -127,7 +145,7 @@ _RESOLVED_BODY_DEFAULT = """Der folgende Vorfall ist nicht mehr offen (quittiert
 Titel:       {title}
 Raum:        {room_name} ({room_number})
 Quelle:      {source}
-Geraet:      {device_name}
+Geraet:      {component_name}{device_name}
 Incident-ID: {id}"""
 
 
@@ -143,6 +161,7 @@ SAMPLE_VALUES: dict[str, str] = {
     "title": "Condition is 27.100 and state is HighHigh",
     "source": "DeviceSet/SP2DC900189/FunctionalUnitSet/SensorUnit/FunctionSet/Temperature",
     "device_name": "SP2DC900189",
+    "component_name": "Kühleinheit S2-DCC",
     "description": "Temperatur im Kuehlschrank S2-DCC ueberschreitet den Warnungs-Grenzwert.",
     "timestamp": "2026-07-04T21:03:00Z",
     "status": "NEW",
@@ -228,6 +247,7 @@ def _build_vals(inc: Incident) -> dict:
         "title": inc.title,
         "source": inc.source,
         "device_name": inc.device_name,
+        "component_name": _component_name_for(inc),
         "description": inc.description,
         "timestamp": inc.timestamp or "-",
         "status": inc.status,

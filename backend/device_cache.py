@@ -232,13 +232,13 @@ def get_monitored_devices() -> list[dict]:
     """All devices with offline_monitor enabled (used by the offline monitor)."""
     conn = _get_db()
     rows = conn.execute(
-        "SELECT serial, name, node_id, online, offline_since, first_alerted FROM device_list WHERE offline_monitor = 1 ORDER BY name"
+        "SELECT serial, name, node_id, component_name, online, offline_since, first_alerted FROM device_list WHERE offline_monitor = 1 ORDER BY name"
     ).fetchall()
     conn.close()
     return [
         {
-            "serial": r[0], "name": r[1], "nodeId": r[2], "online": r[3],
-            "offlineSince": r[4], "firstAlerted": bool(r[5]),
+            "serial": r[0], "name": r[1], "nodeId": r[2], "componentName": r[3] or "",
+            "online": r[4], "offlineSince": r[5], "firstAlerted": bool(r[6]),
         }
         for r in rows
     ]

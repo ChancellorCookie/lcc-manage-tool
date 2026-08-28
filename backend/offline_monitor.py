@@ -26,6 +26,7 @@ TZ = ZoneInfo("Europe/Berlin")
 from . import device_cache as dc
 from .notifier.channels import build_channel
 from .notifier.config import load_config
+from .notifier.state import StateStore
 
 log = logging.getLogger("offline_monitor")
 
@@ -60,6 +61,11 @@ def _fmt_duration(seconds):
         return f"{hours:.1f} h"
     days = hours / 24.0
     return f"{days:.1f} d"
+
+
+def _display_name(d: dict) -> str:
+    """Prefer the human-readable component name over the raw name@serial."""
+    return (d.get("componentName") or d.get("name") or d.get("serial") or "?")
 
 
 def _channel_map(cfg: dict):
@@ -115,6 +121,8 @@ class OfflineMonitor:
         self._last_hourly = 0.0
         self._last_daily_date = None
         self._running = True
+        state_cfg = self.cfg.get("state", {})
+        self._state = StateStore(state_cfg.get("db_path", "./data/state.db"))
 
     def _reload_threshold(self):
         """Pick up a UI-changed offline threshold without a container restart."""
@@ -141,6 +149,14 @@ class OfflineMonitor:
             try:
                 ch.send_raw(subject, body)
                 ok += 1
+                try:
+                    self._state.log_send(
+                        incident_id=f"offline:{time.time():.0f}",
+                        channel=cname, kind="offline",
+                        title=subject, severity="warning",
+                    )
+                except Exception:
+                    log.exception("Offline-Digest Verlauf-Log fehlgeschlagen")
                 log.info("Offline-Digest ueber '%s' versendet", cname)
             except Exception as e:
                 log.error("Offline-Digest Kanal '%s' fehlgeschlagen: %s", cname, e)
@@ -156,7 +172,7 @@ class OfflineMonitor:
         if due_serials:
             for d in due_serials:
                 dur = now - d["offlineSince"] if d["offlineSince"] else 0
-                lines.append(f"  - {d['name']} ({d['serial']}) — offline seit {_fmt_ts(d['offlineSince'])} ({_fmt_duration(dur)})")
+                lines.append(f"  - {_display_name(d)} ({d['serial']}) — offline seit {_fmt_ts(d['offlineSince'])} ({_fmt_duration(dur)})")
         else:
             lines.append("  (keine)")
         lines.append("")
@@ -164,7 +180,7 @@ class OfflineMonitor:
         if monitored_offline:
             for d in monitored_offline:
                 dur = now - d["offlineSince"] if d["offlineSince"] else 0
-                lines.append(f"  - {d['name']} ({d['serial']}) — offline seit {_fmt_ts(d['offlineSince'])} ({_fmt_duration(dur)})")
+                lines.append(f"  - {_display_name(d)} ({d['serial']}) — offline seit {_fmt_ts(d['offlineSince'])} ({_fmt_duration(dur)})")
         else:
             lines.append("  (keine)")
         return "\n".join(lines)
@@ -177,7 +193,7 @@ class OfflineMonitor:
             lines.append(f"{len(monitored_offline)} überwachte Geräte offline:")
             for d in monitored_offline:
                 dur = now - d["offlineSince"] if d["offlineSince"] else 0
-                lines.append(f"  - {d['name']} ({d['serial']}) — offline seit {_fmt_ts(d['offlineSince'])} ({_fmt_duration(dur)})")
+                lines.append(f"  - {_display_name(d)} ({d['serial']}) — offline seit {_fmt_ts(d['offlineSince'])} ({_fmt_duration(dur)})")
         else:
             lines.append("Alle überwachten Geräte sind online.")
         return "\n".join(lines)
