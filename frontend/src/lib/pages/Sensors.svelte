@@ -12,6 +12,9 @@
   let saving = $state(false)
   let search = $state('')
   let sortAsc = $state(true)
+  let locModalOpen = $state(false)
+  let locValue = $state('')
+  let locSaving = $state(false)
 
   async function toggleMonitor(dev, checked) {
     try {
@@ -44,6 +47,10 @@
   )
 
   let stale = $state(false)
+
+  let hasLocation = $derived(
+    props.some(p => p.name === 'HierarchicalLocation' && p.value != null && p.value !== '' && String(p.value) !== 'null')
+  )
 
   async function loadComponentNames(list) {
     // Progressively fetch component names directly from device root
@@ -165,6 +172,40 @@
     } catch (e) { error = e.message }
     finally { saving = false }
   }
+
+  function openLocationModal() {
+    locValue = ''
+    locModalOpen = true
+  }
+
+  async function saveLocation() {
+    const val = locValue.trim()
+    if (!val || !selected) return
+    const devId = (selected.name || selected.serial || '').trim()
+    if (!devId) { error = 'Geräte-Name nicht verfügbar'; return }
+    locSaving = true
+    try {
+      const browsePath = `DeviceSet/${devId}/HierarchicalLocation`
+      const r = await fetch('/api/lads/override', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          browsePath,
+          value: val,
+          dataType: 'String',
+          referenceType: 'property',
+        }),
+      })
+      if (!r.ok) throw new Error((await r.json())?.error || 'Fehler')
+      locModalOpen = false
+      locValue = ''
+      await selectDevice(selected)
+    } catch (e) {
+      error = 'Location speichern fehlgeschlagen: ' + e.message
+    } finally {
+      locSaving = false
+    }
+  }
 </script>
 
 <div>
@@ -282,6 +323,15 @@
               </tbody>
             </table>
           {/if}
+
+          {#if !propsLoading && !hasLocation}
+            <button
+              class="w-full mt-3 py-1.5 rounded-lg border border-amber-500/30 text-xs text-amber-400 hover:bg-amber-500/10 hover:border-amber-500/60 transition-colors flex items-center justify-center gap-2"
+              onclick={openLocationModal}
+            >
+              📍 Location konfigurieren
+            </button>
+          {/if}
         {:else}
           <div class="text-center py-16 text-slate-500">
             <div class="text-4xl mb-3">◫</div>
@@ -308,6 +358,28 @@
         <button class="btn btn-ghost" onclick={cancelEdit}>Cancel</button>
         <button class="btn btn-success" onclick={doSave} disabled={saving}>
           {saving ? 'Saving...' : 'Save'}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Location-Override Modal -->
+{#if locModalOpen}
+  <div class="modal-overlay" onclick={() => locModalOpen = false}>
+    <div class="card max-w-sm w-full" onclick={(e) => e.stopPropagation()}>
+      <h3 class="text-lg font-semibold mb-1">Location konfigurieren</h3>
+      <p class="text-xs text-slate-500 mb-4 break-all font-mono">{selected?.name}</p>
+      <div class="space-y-4">
+        <div>
+          <label>HierarchicalLocation</label>
+          <input type="text" bind:value={locValue} placeholder="z. B. IEU/R404" autofocus />
+        </div>
+      </div>
+      <div class="flex gap-3 justify-end mt-6">
+        <button class="btn btn-ghost" onclick={() => locModalOpen = false}>Abbrechen</button>
+        <button class="btn btn-success" onclick={saveLocation} disabled={locSaving || !locValue.trim()}>
+          {locSaving ? 'Speichern…' : 'Speichern'}
         </button>
       </div>
     </div>

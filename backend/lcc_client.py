@@ -80,3 +80,17 @@ async def put_credentials(server_id: str, data: dict):
 
 async def delete_credentials(server_id: str):
     return await _request("DELETE", f"/discovery/servers/{server_id}/credentials")
+
+
+# ── LADS Overrides (z. B. HierarchicalLocation nachtragen) ─────
+
+async def set_override(data: dict):
+    return await _request("POST", "/lads/override", json=data)
+
+
+async def get_overrides():
+    return await _request("GET", "/lads/overrides")
+
+
+async def remove_override(browse_path: str):
+    return await _request("DELETE", f"/lads/override?browsePath={quote(browse_path, safe='')}")

@@ -319,6 +319,23 @@ async def lads_history(
     )
 
 
+# ── LADS Overrides ─────────────────────────────────────────────
+
+@app.post("/api/lads/override")
+async def set_override(body: dict):
+    return await lcc.set_override(body)
+
+
+@app.get("/api/lads/overrides")
+async def list_overrides():
+    return await lcc.get_overrides()
+
+
+@app.delete("/api/lads/override")
+async def remove_override(browsePath: str = Query(...)):
+    return await lcc.remove_override(browsePath)
+
+
 # ── OPC UA Status ──────────────────────────────────────────────
 
 @app.get("/api/opcua/status")
