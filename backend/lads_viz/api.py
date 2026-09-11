@@ -348,6 +348,132 @@ async def stats_consumption(signals: str, start: str, end: str | None = None,
     return await compute(tuple(ids), start_ms, end_ms, bucket, eur_kwh)
 
 
+# ── Dashboard-Statistiken (Startseiten-Kacheln) ────────────────
+# WICHTIG: vor /dashboards/{dashboard_id} registrieren, sonst wird "stats"
+# als dashboard_id geparst.
+
+@router.get("/dashboards/stats")
+async def dashboard_stats(window_h: int = 24):
+    """Je Dashboard: kWh + Kosten im Fenster, aktueller Verbrauch, Widget-/Signal-Zahl.
+
+    Quelle: lokaler sensor_values-Store (Collector + Write-through), nicht OPC UA.
+    Fenster default 24 h; Signale ohne Daten liefern None (Kachel zeigt '–').
+    """
+    import time
+
+    if window_h < 1 or window_h > 31 * 24:
+        raise HTTPException(400, "window_h zwischen 1 und 744")
+
+    async def compute(window_h_: int):
+        d = await db.get_db()
+        now_ms = int(time.time() * 1000)
+        start_ms = now_ms - window_h_ * 3_600_000
+        cur = await d.execute(
+            """SELECT db.id, db.name, db.description, w.id AS wid, w.config
+               FROM dashboards db
+               LEFT JOIN widgets w ON w.dashboard_id = db.id
+               ORDER BY db.id, w.id"""
+        )
+        rows = await cur.fetchall()
+        dash: dict = {}
+        for r in rows:
+            if r["id"] not in dash:
+                dash[r["id"]] = {"id": r["id"], "name": r["name"], "description": r["description"],
+                                 "widget_count": 0, "signal_ids": set()}
+            if r["wid"] is not None:
+                dash[r["id"]]["widget_count"] += 1
+                try:
+                    cfg = json.loads(r["config"] or "{}")
+                except Exception:
+                    cfg = {}
+                for s in cfg.get("signals") or []:
+                    try:
+                        dash[r["id"]]["signal_ids"].add(int(s))
+                    except Exception:
+                        pass
+
+        eur_kwh = 0.32
+        srow = await (await d.execute("SELECT value FROM settings WHERE key='eur_per_kwh'")).fetchone()
+        if srow:
+            try:
+                eur_kwh = float(srow["value"])
+            except Exception:
+                pass
+
+        meta_cache: dict = {}
+
+        async def signal_meta(sid: int):
+            if sid not in meta_cache:
+                rc = await d.execute(
+                    """SELECT s.id, s.display_name, s.browse_name, s.engineering_unit AS unit,
+                              dev.component_name
+                       FROM signals s JOIN devices dev ON dev.id = s.device_id WHERE s.id = ?""",
+                    (sid,),
+                )
+                row = await rc.fetchone()
+                meta_cache[sid] = dict(row) if row else None
+            return meta_cache[sid]
+
+        out = []
+        for dd in dash.values():
+            ids = sorted(dd["signal_ids"]) or []
+            kwh_total = 0.0
+            current_w = 0.0
+            power_n = 0
+            coverage_h = 0.0
+            latest = []
+            for sid in ids:
+                meta = await signal_meta(sid)
+                if not meta:
+                    continue
+                unit = (meta["unit"] or "").lower()
+                is_power = unit in ("w", "kw", "wh", "mwh")
+                rc = await d.execute(
+                    """SELECT ts, value FROM sensor_values
+                       WHERE signal_id=? AND ts>=? AND ts<=? ORDER BY ts LIMIT 50000""",
+                    (sid, start_ms, now_ms),
+                )
+                pts = [(r["ts"], r["value"]) for r in await rc.fetchall()]
+                if is_power:
+                    wh, _avg, _part, cov = stats.window_summary(pts, start_ms, now_ms)
+                    if wh > 0:
+                        kwh_total += wh / 1000.0
+                        power_n += 1
+                        coverage_h += cov
+                rc = await d.execute(
+                    "SELECT ts, value FROM sensor_values WHERE signal_id=? ORDER BY ts DESC LIMIT 1",
+                    (sid,),
+                )
+                last = await rc.fetchone()
+                if last:
+                    latest.append({
+                        "signal_id": sid,
+                        "device": meta["component_name"] or "",
+                        "name": meta["display_name"] or meta["browse_name"],
+                        "unit": meta["unit"] or "",
+                        "value": last["value"],
+                        "ts": last["ts"],
+                    })
+                    if is_power:
+                        current_w += last["value"]
+            out.append({
+                "id": dd["id"],
+                "name": dd["name"],
+                "description": dd["description"],
+                "widget_count": dd["widget_count"],
+                "signal_count": len(ids),
+                "power_signals": power_n,
+                "kwh": round(kwh_total, 3) if power_n else None,
+                "cost": round(kwh_total * eur_kwh, 2) if power_n else None,
+                "current_w": round(current_w, 1) if power_n else None,
+                "coverage_h": round(coverage_h, 2),
+                "latest": latest[:5],
+            })
+        return out
+
+    return await stats.cached(compute)(window_h)
+
+
 # ── Dashboards & Widgets ───────────────────────────────────────
 
 @router.get("/dashboards")

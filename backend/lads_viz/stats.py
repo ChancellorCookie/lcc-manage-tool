@@ -135,6 +135,13 @@ def energy_avg_per_bucket(points, bounds, start_ms, end_ms, gap_max_ms=GAP_MAX_M
     return wh, avgs, partial, cov
 
 
+def window_summary(points, start_ms, end_ms, gap_max_ms=GAP_MAX_MS):
+    """Ein einzelnes Fenster: (wh, avg_w, partial, coverage_h) — Wrapper um energy_avg_per_bucket."""
+    bounds = [(start_ms, end_ms, "window")]
+    wh, avg, partial, cov = energy_avg_per_bucket(points, bounds, start_ms, end_ms, gap_max_ms)
+    return wh[0] if wh else 0.0, avg[0] if avg else None, (partial[0] if partial else False), (cov[0] if cov else 0.0)
+
+
 def consumption(signals_meta, raw, start_ms, end_ms, bucket, eur_kwh):
     """Aggregiert zu Verbrauchs-Buckets. signals_meta: [{id, unit, device, location}]."""
     if bucket == "auto":

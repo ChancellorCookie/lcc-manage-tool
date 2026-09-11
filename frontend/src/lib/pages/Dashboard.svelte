@@ -43,11 +43,23 @@
       deviceTotal = devs.length
       deviceOnline = devs.filter(d => d.online === 1).length
     } catch { /* ignore */ }
+    // Kacheln mit Verbrauchswerten; Fallback: einfache Liste (z.B. alter Backend-Stand)
     try {
-      const r = await fetch('/api/viz/dashboards')
+      const r = await fetch('/api/viz/dashboards/stats?window_h=24')
+      if (!r.ok) throw new Error('stats: ' + r.status)
       const d = await r.json()
-      dashboardList = Array.isArray(d) ? d : []
-    } catch { /* ignore */ }
+      if (!Array.isArray(d)) throw new Error('stats: kein Array')
+      dashboardList = d
+    } catch {
+      try {
+        const r = await fetch('/api/viz/dashboards')
+        if (!r.ok) throw new Error('list: ' + r.status)
+        const d = await r.json()
+        dashboardList = Array.isArray(d)
+          ? d.map((x) => ({ ...x, kwh: null, cost: null, current_w: null, signal_count: 0, power_signals: 0 }))
+          : []
+      } catch { /* ignore */ }
+    }
     managerLoading = false
   }
 
@@ -237,11 +249,23 @@
               </div>
               <div class="min-w-0">
                 <div class="font-semibold truncate">{d.name}</div>
-                <div class="text-xs text-slate-500 truncate">{d.description || 'Keine Beschreibung'}</div>
+                <div class="text-xs text-slate-500 truncate">{d.widget_count} Widget(s){#if d.signal_count} &middot; {d.signal_count} Signale{/if}</div>
               </div>
             </div>
+            <div class="flex items-baseline gap-2 mt-2">
+              <span class="text-2xl font-bold tabular-nums">{d.kwh != null ? d.kwh.toFixed(1) : '–'}</span>
+              <span class="text-xs text-slate-500">kWh (24h)</span>
+              {#if d.cost != null}
+                <span class="ml-auto text-sm font-semibold text-emerald-400">{d.cost.toFixed(2)} &euro;</span>
+              {/if}
+            </div>
             <div class="flex items-center gap-2 mt-auto pt-2 text-xs">
-              <span class="rounded-full bg-blue-500/10 text-blue-400 px-2 py-0.5">{d.widget_count} Widget(s)</span>
+              {#if d.current_w != null}
+                <span class="rounded-full bg-cyan-500/10 text-cyan-400 px-2 py-0.5">{Math.round(d.current_w)} W aktuell</span>
+              {/if}
+              {#if d.current_w == null && d.power_signals === 0}
+                <span class="text-slate-600 truncate">keine Leistungssignale</span>
+              {/if}
               <span class="ml-auto text-slate-600">Öffnen &rarr;</span>
             </div>
           </button>
