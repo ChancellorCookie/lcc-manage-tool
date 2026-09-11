@@ -33,6 +33,13 @@ app.add_middleware(
 
 app.include_router(notifier_router)
 
+# ── LADS-Visualize-Modul (Dashboards, History, Stats, Settings) ──
+# Alle Routen unter /api/viz — kollidiert nicht mit Bestand.
+
+from backend.lads_viz.api import router as viz_router
+
+app.include_router(viz_router, prefix="/api/viz")
+
 
 # ── Device health check (background) ───────────────────────────────
 

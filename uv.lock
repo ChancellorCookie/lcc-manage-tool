@@ -621,6 +621,7 @@ name = "lcc-manage-tool"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "aiosqlite" },
     { name = "asyncua" },
     { name = "fastapi" },
     { name = "httpx" },
@@ -631,11 +632,13 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "pyyaml" },
     { name = "twilio" },
+    { name = "tzdata" },
     { name = "uvicorn" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "aiosqlite", specifier = ">=0.22.1" },
     { name = "asyncua", specifier = ">=2.0.1" },
     { name = "fastapi", specifier = ">=0.139.2" },
     { name = "httpx", specifier = ">=0.28.1" },
@@ -646,6 +649,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.2.2" },
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "twilio", specifier = ">=9.10.9" },
+    { name = "tzdata", specifier = ">=2026.3" },
     { name = "uvicorn", specifier = ">=0.51.0" },
 ]
 
