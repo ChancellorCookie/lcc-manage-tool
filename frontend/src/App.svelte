@@ -5,6 +5,7 @@
   import SensorHistory from './lib/pages/SensorHistory.svelte'
   import Incidents from './lib/pages/Incidents.svelte'
     import VizDashboards from './lib/pages/VizDashboards.svelte'
+    import VizMonitor from './lib/pages/VizMonitor.svelte'
     import Icon from './lib/Icon.svelte'
   import { onMount } from 'svelte'
 
@@ -98,7 +99,8 @@
     { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
     { id: 'infrastructure', label: 'Infrastructure', icon: 'rooms' },
     { id: 'sensors', label: 'Sensors', icon: 'sensors' },
-    { id: 'sensorhistory', label: 'History', icon: 'gateways' },
+        { id: 'monitoring', label: 'Monitoring', icon: 'sensors' },
+        { id: 'sensorhistory', label: 'History', icon: 'gateways' },
         { id: 'incidents', label: 'Incidents', icon: 'incidents' },
         { id: 'dashboards', label: 'Dashboards', icon: 'dashboard' },
       ]
@@ -205,8 +207,10 @@
       {:else if page === 'incidents'}
               <Incidents initialTab={incidentsTab} />
             {:else if page === 'dashboards'}
-              <VizDashboards />
-            {/if}
+                    <VizDashboards />
+                  {:else if page === 'monitoring'}
+                    <VizMonitor />
+                  {/if}
     </div>
   </main>
 
