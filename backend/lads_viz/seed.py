@@ -6,7 +6,7 @@ from . import db
 
 async def seed_demo_dashboard() -> dict | None:
     d = await db.get_db()
-    cur = await d.execute("SELECT COUNT(*) FROM dashboards")
+    cur = await d.execute("SELECT COUNT(*) FROM widgets")
     if (await cur.fetchone())[0] > 0:
         return None
     cur = await d.execute(
