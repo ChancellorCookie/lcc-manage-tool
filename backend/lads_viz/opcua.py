@@ -176,6 +176,7 @@ async def list_devices(url: str) -> list:
             entry = merged.setdefault(serial, {
                 "serial": serial,
                 "browse_name": bn.Name,
+                "node_id": node_to_str(ch.nodeid),
                 "component_name": "",
                 "hierarchical_location": "",
                 "device_class": "",

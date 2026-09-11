@@ -198,60 +198,45 @@ async def check_device_status():
 
 @app.post("/api/opcua/devices/refresh")
 async def refresh_device_cache():
-    """Fetch fresh device list from OPC UA, merge with persisted cache.
-    Devices in cache but not in live list are marked offline."""
+    """Frische Geräteliste über das gemeinsame OPC-UA-Modul (lads_viz.opcua).
+
+    Eine einzige Browse-Implementierung für die ganze App: ns-sicher, mergt
+    über Namespaces und liefert ComponentName + HierarchicalLocation bereits
+    aufgelöst. Nicht mehr vorhandene Geräte werden offline markiert.
+    """
+    from backend.lads_viz import config as viz_config
+    from backend.lads_viz import opcua as viz_opcua
+
     try:
-        data = await opcua.browse_node("ns=3;i=5001")
-        live_devices = []
-        live_serials = set()
-        seen = set()
-        for dev in data.get("children", []):
-            name = dev.get("name", "?")
-            if name in ("DeviceFeatures", "HA Configuration"):
-                continue
-            if name in seen:
-                continue
-            seen.add(name)
-            node_id = dev.get("nodeId", name)
-            live_serials.add(dc.stable_key(node_id))
-            serial = node_id
-            live_devices.append({
-                "name": name,
-                "nodeId": serial,
-                "componentName": dev.get("componentName", ""),
-            })
-
-        # Update/add live devices, preserving componentNames.
-        # set_cached_devices keys by the stable identifier (string part of the
-        # nodeId) so a volatile ns index can no longer spawn duplicate rows.
-        dc.set_cached_devices(live_devices)
-
-        # Enrich: read the human-readable component name + hierarchical
-        # location from OPC UA and persist them (only existing data, used by
-        # templates and offline digest bodies).
-        try:
-            import asyncio as _aio
-            for dev in live_devices[:40]:
-                node_id = dev["nodeId"]
-                # skip devices that already have a persisted component name
-                meta = await opcua.read_component_meta(node_id)
-                if meta.get("componentName") or meta.get("hierarchicalLocation"):
-                    dc.set_device_meta(dev["name"].split("@")[0],
-                                       component_name=meta.get("componentName") or None,
-                                       hierarchical_location=meta.get("hierarchicalLocation") or None)
-        except Exception:
-            logger.exception("Refresh component-name enrichment fehlgeschlagen (non-fatal)")
-
-        # Mark devices NOT in the live list as offline (compare stable keys)
-        all_cached = dc.get_cached_devices()
-        for cached in all_cached:
-            if cached["serial"] not in live_serials and cached["online"] != 0:
-                dc.set_device_offline(cached["serial"])
-
-        return {"devices": dc.get_cached_devices(), "cached": True, "count": len(live_devices)}
+        devices = await viz_opcua.list_devices(viz_config.OPC_URL)
     except Exception as e:
         logger.error(f"Device refresh failed: {e}")
-        raise HTTPException(500, str(e))
+        raise HTTPException(502, f"OPC-UA-Fehler: {e}")
+
+    live_devices = []
+    for d in devices:
+        live_devices.append({
+            "name": (d.get("component_name") or d.get("serial") or "").strip(),
+            "nodeId": d.get("node_id") or d.get("serial", ""),
+            "componentName": d.get("component_name") or "",
+        })
+
+    # In den LCC-Cache mergen (stabiler Serial-Key, node_id wird in-place
+    # aktualisiert wenn der ns-Index wechselt).
+    dc.set_cached_devices(live_devices)
+
+    # HierarchicalLocation persistieren (für Templates + Offline-Digest).
+    for d in devices:
+        if d.get("hierarchical_location"):
+            dc.set_device_meta(d.get("serial"), hierarchical_location=d["hierarchical_location"])
+
+    # Nicht mehr vorhandene Geräte offline markieren (Vergleich über stabile Keys)
+    live_serials = {dc.stable_key(x["nodeId"]) for x in live_devices}
+    for cached in dc.get_cached_devices():
+        if cached["serial"] not in live_serials and cached["online"] != 0:
+            dc.set_device_offline(cached["serial"])
+
+    return {"devices": dc.get_cached_devices(), "cached": True, "count": len(live_devices)}
 
 
 @app.post("/api/opcua/devices/monitor")
