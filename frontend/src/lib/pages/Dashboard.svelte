@@ -18,6 +18,7 @@
   let notifierLoading = $state(true)
   let notifierError = $state('')
   let offlineStats = $state(null)
+  let storage = $state(null)
   let dashboardList = $state([])
 
   let pollTimer = $state(null)
@@ -37,11 +38,15 @@
       opcuaConnected = data.connected
     } catch { opcuaConnected = false }
     try {
-      const res = await fetch('/api/opcua/devices/cached')
-      const data = await res.json()
+      const r = await fetch('/api/opcua/devices/cached')
+      const data = await r.json()
       const devs = data.devices || []
       deviceTotal = devs.length
       deviceOnline = devs.filter(d => d.online === 1).length
+    } catch { /* ignore */ }
+    try {
+      const r = await fetch('/api/viz/system/storage')
+      if (r.ok) storage = await r.json()
     } catch { /* ignore */ }
     // Kacheln mit Verbrauchswerten; Fallback: einfache Liste (z.B. alter Backend-Stand)
     try {
@@ -196,6 +201,44 @@
               </div>
             </div>
           </button>
+
+          <!-- Docker Storage -->
+          <div class="card w-full flex-1 flex flex-col">
+            <div class="flex items-center gap-4">
+              <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style="background: rgba(167,139,250,0.15)">
+                <Icon name="disk" size={20} />
+              </div>
+              <div class="min-w-0 flex-1">
+                <h3 class="text-lg font-bold">Docker Storage</h3>
+                {#if storage?.disk}
+                  <div class="flex items-baseline gap-2 mt-1">
+                    <span class="text-xl font-bold tabular-nums">{Math.round(storage.disk.free_gb)} GB</span>
+                    <span class="text-xs text-slate-500">frei von {Math.round(storage.disk.total_gb)} GB</span>
+                  </div>
+                  <div class="w-full h-2 rounded-full bg-slate-800 mt-2 overflow-hidden">
+                    <div
+                      class="h-full rounded-full transition-all duration-500"
+                      style="width: {Math.min(storage.disk.percent, 100)}%; background: {storage.disk.percent > 90 ? '#dc2626' : storage.disk.percent > 75 ? '#f59e0b' : '#10b981'}"
+                    ></div>
+                  </div>
+                  <div class="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-slate-500 mt-1.5">
+                    <span>{storage.disk.percent}% belegt</span>
+                    {#if storage.docker?.images?.size_gb != null}
+                      <span>Images {storage.docker.images.size_gb} GB</span>
+                    {/if}
+                    {#if storage.docker?.local_volumes?.size_gb != null}
+                      <span>Volumes {storage.docker.local_volumes.size_gb} GB</span>
+                    {/if}
+                    {#if storage.ts}
+                      <span class="ml-auto">Stand {storage.ts}</span>
+                    {/if}
+                  </div>
+                {:else}
+                  <p class="text-xs text-slate-600 mt-1">Speicher nicht verfügbar…</p>
+                {/if}
+              </div>
+            </div>
+          </div>
 
           <!-- Manage Devices -->
           <button class="card w-full text-left hover:border-blue-500/40 transition-colors cursor-pointer flex-1 flex flex-col" onclick={() => navigate('sensors')}>

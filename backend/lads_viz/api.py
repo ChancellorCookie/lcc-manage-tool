@@ -211,6 +211,75 @@ async def unmonitor_signal(signal_id: int):
     return {"id": signal_id, "monitored": False}
 
 
+# ── Alle gespeicherten Kanäle (Widget-Dialog) ─────────────────
+
+@router.get("/signals")
+async def list_all_signals(server_id: int | None = None, with_history_only: bool = False):
+    """ALLE gespeicherten Signale (nicht nur 'überwachte') — zum Zusammenbauen der Dashboards."""
+    d = await db.get_db()
+    q = """SELECT s.*, dev.component_name, dev.hierarchical_location, dev.serial,
+                  srv.url AS server_url, srv.name AS server_name
+           FROM signals s
+           JOIN devices dev ON dev.id = s.device_id
+           JOIN servers srv ON srv.id = dev.server_id"""
+    params: tuple = ()
+    conds = []
+    if server_id is not None:
+        conds.append("dev.server_id = ?")
+        params += (server_id,)
+    if with_history_only:
+        conds.append("s.historizing = 1")
+    if conds:
+        q += " WHERE " + " AND ".join(conds)
+    q += " ORDER BY dev.component_name COLLATE NOCASE, s.display_name COLLATE NOCASE"
+    cur = await d.execute(q, params)
+    return [dict(r) for r in await cur.fetchall()]
+
+
+# ── System-Info (Docker-Host-Speicher) ─────────────────────────
+
+@router.get("/system/storage")
+async def system_storage():
+    """Speicherplatz des Docker-Hosts für die Startseiten-Kachel.
+
+    Bevorzugt: data/storage.json (vom Host-Cron geschrieben, liegt im
+    gemounteten Volume) mit echten Host-Werten inkl. docker system df.
+    Fallback: df des Dateisystems hinter der DB (im Container = Host-Partition).
+    """
+    import shutil
+    from pathlib import Path
+
+    payload = {"source": None, "disk": None, "docker": None, "ts": None}
+    db_dir = Path(config.DB_PATH).parent
+    for cand in (db_dir / "storage.json", Path("/app/data/storage.json")):
+        try:
+            if cand.exists():
+                data = json.loads(cand.read_text())
+                disk = data.get("disk")
+                if disk and disk.get("total_gb"):
+                    payload.update({"source": "host-cron", "disk": disk,
+                                    "docker": data.get("docker"), "ts": data.get("ts")})
+                    return payload
+        except Exception:
+            continue
+    # Fallback: Container-Sicht (Overlay = Host-Partition hinter /var/lib/docker)
+    try:
+        u = shutil.disk_usage(str(db_dir))
+        gb = 1024 ** 3
+        payload.update({
+            "source": "container-df",
+            "disk": {
+                "total_gb": round(u.total / gb, 1),
+                "used_gb": round(u.used / gb, 1),
+                "free_gb": round(u.free / gb, 1),
+                "percent": round(u.used / u.total * 100, 1),
+            },
+        })
+    except Exception:
+        pass
+    return payload
+
+
 # ── History (OPC UA, on-demand) ────────────────────────────────
 
 @router.get("/signals/{signal_id}/history")

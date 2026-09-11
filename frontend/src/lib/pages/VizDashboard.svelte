@@ -90,7 +90,7 @@
   async function enterEdit() {
     mode = 'edit'
     try {
-      sensors = await api.monitored()
+      sensors = await api.allSignals()
     } catch (e) {
       error = e.message
     }
@@ -339,15 +339,18 @@
       <h2>Widget-Einstellungen</h2>
       <label class="lbl">Titel</label>
       <input bind:value={editTitle} placeholder="Titel des Widgets" style="width:100%" />
-      <label class="lbl">Signale (nur überwachte Sensoren)</label>
+      <label class="lbl">Signale (alle gespeicherten Kanäle)</label>
       <div class="sig-list">
         {#if sensors.length === 0}
-          <div class="muted">Keine überwachten Sensoren. Füge zuerst unter „Server & Discovery“ Sensoren hinzu.</div>
+          <div class="muted">Keine Kanäle gefunden. Starte unter „Sensors“ eine Discovery, damit Signale gespeichert werden.</div>
         {:else}
           {#each sensors as s}
             <label class="sig-opt">
               <input type="checkbox" bind:group={editSignals} value={s.id} />
-              <span>{s.component_name} — {s.display_name} <span class="muted">({s.engineering_unit || '—'})</span></span>
+              <span class="min-w-0">
+                <span class="sig-name">{s.component_name} — {s.display_name}</span>
+                <span class="muted small"> ({s.engineering_unit || '—'}){#if s.historizing} <span class="badge sig-rec">aufgezeichnet</span>{/if}</span>
+              </span>
             </label>
           {/each}
         {/if}
@@ -451,5 +454,11 @@
   .sig-opt:hover { background: var(--surface-2); }
   .seg { display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--text); padding: 4px 10px 4px 5px; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; }
   .seg:hover { background: var(--surface-2); }
+  .sig-name { font-weight: 500; }
+  .sig-rec {
+    background: rgba(52, 211, 153, 0.12);
+    color: var(--success);
+    border: 1px solid rgba(52, 211, 153, 0.25);
+  }
   .small { font-size: 11px; }
 </style>

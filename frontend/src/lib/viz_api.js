@@ -24,6 +24,8 @@ export const api = {
   devices: (id) => j('GET', `/servers/${id}/devices`),
   signals: (id) => j('GET', `/devices/${id}/signals`),
   monitored: (serverId) => j('GET', serverId ? `/sensors?server_id=${serverId}` : '/sensors'),
+  allSignals: (serverId) => j('GET', serverId ? `/signals?server_id=${serverId}` : '/signals'),
+  storage: () => j('GET', '/system/storage'),
   monitor: (id) => j('POST', `/sensors/${id}/monitor`),
   unmonitor: (id) => j('POST', `/sensors/${id}/unmonitor`),
   history: (signalId, start, end, points = 1500) =>
