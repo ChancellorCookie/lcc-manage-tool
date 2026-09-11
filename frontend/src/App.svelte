@@ -12,6 +12,20 @@
   let collapsed = $state(true)
   let incidentsTab = $state('incidents')
   let dashId = $state(null)
+  let storage = $state(null)
+
+  const storagePct = $derived(Math.min(100, Math.max(0, storage?.percent ?? 0)))
+  const storageColor = $derived(storagePct > 90 ? '#f87171' : storagePct > 75 ? '#fbbf24' : '#34d399')
+  const ringDash = $derived((storagePct / 100) * 94.25)
+
+  async function loadStorage() {
+    try {
+      const r = await fetch('/api/viz/system/storage')
+      if (!r.ok) return
+      const d = await r.json()
+      if (d?.disk?.percent != null) storage = d.disk
+    } catch { /* ignore */ }
+  }
   let toastMsg = $state('')
   let toastType = $state('success')
   let toastTimer = $state(null)
@@ -89,6 +103,11 @@
     if (!hash) {
       history.replaceState({ page: 'dashboard' }, '', '#/dashboard')
     }
+
+    // Speicher-Kennzahlen des Docker-Hosts (Ring in der Sidebar)
+    loadStorage()
+    const storageTimer = setInterval(loadStorage, 60_000)
+    return () => clearInterval(storageTimer)
   })
 
   function showToast(msg, type = 'success') {
@@ -174,6 +193,29 @@
             <Icon name={item.icon} size={18} />
           </button>
         {/each}
+      </div>
+    {/if}
+
+    <!-- Storage-Ring (belegter Speicher des Docker-Hosts) -->
+    {#if storage}
+      <div
+        class="flex items-center justify-center gap-2 py-2 border-t border-slate-800"
+        title="Speicher belegt: {storagePct}% — {storage.free_gb} GB frei von {storage.total_gb} GB"
+      >
+        <svg width="26" height="26" viewBox="0 0 36 36" class="flex-shrink-0">
+          <circle cx="18" cy="18" r="15" fill="none" stroke="rgba(148,163,184,0.25)" stroke-width="3.5" />
+          <circle
+            cx="18" cy="18" r="15" fill="none"
+            stroke={storageColor}
+            stroke-width="3.5"
+            stroke-linecap="round"
+            stroke-dasharray="{ringDash} 94.25"
+            transform="rotate(-90 18 18)"
+          />
+        </svg>
+        {#if !collapsed}
+          <span class="text-xs text-slate-500">{storagePct}% belegt</span>
+        {/if}
       </div>
     {/if}
 
