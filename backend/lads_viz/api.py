@@ -308,6 +308,13 @@ async def signal_history(signal_id: int, start: str, end: str | None = None, poi
     except Exception as e:
         raise HTTPException(502, f"OPC-UA-HistoryRead-Fehler: {e}")
 
+    # Write-through: gelesene Rohpunkte ins eigene Zeitreihen-Store archivieren.
+    if raw:
+        try:
+            await db.insert_values(signal_id, raw)
+        except Exception:
+            pass  # Archivierung darf die Antwort nicht verhindern
+
     pts = history.lttb(raw, max(2, points)) if points > 0 else raw
     stats = history.compute_stats(raw)
     unit = row["engineering_unit"] or ""

@@ -60,6 +60,14 @@ CREATE TABLE IF NOT EXISTS settings (
     value TEXT NOT NULL DEFAULT ''
 );
 
+CREATE TABLE IF NOT EXISTS sensor_values (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    signal_id INTEGER NOT NULL REFERENCES signals(id) ON DELETE CASCADE,
+    ts        INTEGER NOT NULL,   -- epoch ms
+    value     REAL NOT NULL,
+    UNIQUE(signal_id, ts)
+);
+
 CREATE TABLE IF NOT EXISTS widgets (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     dashboard_id INTEGER NOT NULL REFERENCES dashboards(id) ON DELETE CASCADE,
@@ -73,6 +81,7 @@ CREATE TABLE IF NOT EXISTS widgets (
 CREATE INDEX IF NOT EXISTS idx_devices_server ON devices(server_id);
 CREATE INDEX IF NOT EXISTS idx_signals_device ON signals(device_id);
 CREATE INDEX IF NOT EXISTS idx_widgets_dashboard ON widgets(dashboard_id);
+CREATE INDEX IF NOT EXISTS idx_sensor_values_sig_ts ON sensor_values(signal_id, ts);
 """
 
 _db: aiosqlite.Connection | None = None
@@ -95,3 +104,32 @@ async def get_db() -> aiosqlite.Connection:
     if _db is None:
         await init_db()
     return _db
+
+
+# ── Zeitreihen-Store (append-only) ─────────────────────────────
+
+async def insert_values(signal_id: int, points) -> None:
+    """Punkte [(ts_ms, value), ...] append-only einfügen (Duplikate ignoriert)."""
+    d = await get_db()
+    await d.executemany(
+        "INSERT OR IGNORE INTO sensor_values (signal_id, ts, value) VALUES (?, ?, ?)",
+        [(signal_id, int(t), float(v)) for t, v in points],
+    )
+    await d.commit()
+
+
+async def read_values(signal_id: int, start_ms: int, end_ms: int) -> list:
+    d = await get_db()
+    cur = await d.execute(
+        "SELECT ts, value FROM sensor_values WHERE signal_id=? AND ts>=? AND ts<=? ORDER BY ts",
+        (signal_id, start_ms, end_ms),
+    )
+    return [(r["ts"], r["value"]) for r in await cur.fetchall()]
+
+
+async def monitored_signals() -> list[dict]:
+    d = await get_db()
+    cur = await d.execute(
+        "SELECT id, node_id, engineering_unit FROM signals WHERE monitored=1 AND node_id != ''"
+    )
+    return [dict(r) for r in await cur.fetchall()]

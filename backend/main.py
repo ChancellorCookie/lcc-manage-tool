@@ -88,6 +88,15 @@ async def start_notifier():
     except Exception:
         log.exception("Failed to start Offline-Device-Monitor (non-fatal)")
 
+    # Viz-Collector: überwachte Sensoren ins eigene Zeitreihen-Store schreiben
+    try:
+        from backend.lads_viz import collector
+
+        asyncio.create_task(collector.run())
+        log.info("Viz-Collector background task started")
+    except Exception:
+        log.exception("Failed to start Viz-Collector (non-fatal)")
+
 
 # ── Error handler ─────────────────────────────────────────────────
 
