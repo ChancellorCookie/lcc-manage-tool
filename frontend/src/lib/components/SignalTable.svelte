@@ -126,5 +126,10 @@
   }
   .table-wrap {
     overflow-x: auto;
+    width: 100%;
+  }
+  .table-wrap table {
+    width: 100%;
+    border-collapse: collapse;
   }
 </style>

@@ -39,6 +39,7 @@
   let saveTimer = 0
   let saveMsg = $state('')
   let dataSourceInfo = $state('')
+  let sensorQuery = $state('')
 
   async function reload() {
     try {
@@ -108,6 +109,16 @@
     if (dbP === 0) return `Datenquelle: OPC UA (${fmt(fillP)} Punkte nachgeladen)`
     return `Datenquelle: lokale DB + ${fmt(fillP)} nachgeladene Punkte (OPC UA, jetzt archiviert)`
   }
+
+  const filteredSensors = $derived(
+    sensorQuery.trim()
+      ? sensors.filter((s) =>
+          `${s.display_name} ${s.component_name || ''} ${s.engineering_unit || ''}`
+            .toLowerCase()
+            .includes(sensorQuery.trim().toLowerCase()),
+        )
+      : sensors,
+  )
 
   async function enterEdit() {
     mode = 'edit'
@@ -365,11 +376,18 @@
       <label class="lbl">Titel</label>
       <input bind:value={editTitle} placeholder="Titel des Widgets" style="width:100%" />
       <label class="lbl">Signale (alle gespeicherten Kanäle)</label>
+      <input
+        bind:value={sensorQuery}
+        placeholder="Sensoren durchsuchen… (Name, Gerät, Einheit)"
+        style="width:100%; margin-bottom:6px"
+      />
       <div class="sig-list">
         {#if sensors.length === 0}
           <div class="muted">Keine Kanäle gefunden. Starte unter „Sensors“ eine Discovery, damit Signale gespeichert werden.</div>
+        {:else if filteredSensors.length === 0}
+          <div class="muted">Keine Kanäle passen zu „{sensorQuery}“.</div>
         {:else}
-          {#each sensors as s}
+          {#each filteredSensors as s}
             <label class="sig-opt">
               <input type="checkbox" bind:group={editSignals} value={s.id} />
               <span class="min-w-0">

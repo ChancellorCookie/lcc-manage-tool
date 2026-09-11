@@ -1,5 +1,6 @@
 <script>
   import { api, unwrap } from '../api.js'
+  import { api as vizApi } from '../viz_api.js'
   import { onMount, onDestroy } from 'svelte'
   import Icon from '../Icon.svelte'
 
@@ -19,24 +20,16 @@
   let notifierError = $state('')
   let offlineStats = $state(null)
   let dashboardList = $state([])
-  let selectedDashId = $state(null)
+  let addError = $state('')
 
-  const sel = $derived(
-    dashboardList.find((d) => d.id === selectedDashId) || dashboardList[0] || null
-  )
-
-  // Persistierte Dashboard-Auswahl der Startseiten-Kachel übernehmen
-  $effect(() => {
-    if (dashboardList.length && (selectedDashId == null || !dashboardList.some((d) => d.id === selectedDashId))) {
-      let saved = null
-      try { saved = Number(localStorage.getItem('lcc-dash-tile')) } catch { /* ignore */ }
-      selectedDashId = dashboardList.some((d) => d.id === saved) ? saved : dashboardList[0].id
+  async function addDashboard() {
+    addError = ''
+    try {
+      const created = await vizApi.createDashboard('Neues Dashboard')
+      openDashboard(created.id)
+    } catch (e) {
+      addError = e.message
     }
-  })
-
-  function selectDash(id) {
-    selectedDashId = id
-    try { localStorage.setItem('lcc-dash-tile', String(id)) } catch { /* ignore */ }
   }
 
   let pollTimer = $state(null)
@@ -131,9 +124,9 @@
   </div>
 
   <!-- Split Layout -->
-  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
     <!-- LEFT: Notifier -->
-    <div>
+    <div class="flex flex-col">
       <div class="flex items-center gap-2 mb-4">
         <Icon name="incidents" size={20} />
         <h2 class="text-lg font-bold">Notifier</h2>
@@ -243,50 +236,60 @@
             </div>
           </button>
 
-          <!-- Dashboards: eine Kachel, auswählbar welches Dashboard angezeigt wird -->
-          <div class="card w-full flex-1 flex flex-col">
-            <div class="flex items-center gap-4">
-              <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style="background: rgba(96,165,250,0.15)">
-                <Icon name="dashboard" size={20} />
-              </div>
-              <div class="min-w-0 flex-1">
-                <h3 class="text-lg font-bold">Dashboards</h3>
-                {#if dashboardList.length === 0}
-                  <p class="text-xs text-slate-600 mt-1">Noch keine Dashboards angelegt.</p>
-                {:else if sel}
-                  <select class="mt-2 text-sm !w-auto" value={sel.id} onchange={(e) => selectDash(Number(e.target.value))}>
-                    {#each dashboardList as d}
-                      <option value={d.id}>{d.name}</option>
-                    {/each}
-                  </select>
-                  <div class="flex items-baseline gap-2 mt-2">
-                    <span class="text-2xl font-bold tabular-nums">{sel.kwh != null ? sel.kwh.toFixed(1) : '–'}</span>
-                    <span class="text-xs text-slate-500">kWh (24h)</span>
-                    {#if sel.cost != null}
-                      <span class="ml-auto text-sm font-semibold text-emerald-400">{sel.cost.toFixed(2)} &euro;</span>
-                    {/if}
-                  </div>
-                  <div class="flex flex-wrap items-center gap-2 mt-1.5 text-xs">
-                    {#if sel.current_w != null}
-                      <span class="rounded-full bg-cyan-500/10 text-cyan-400 px-2 py-0.5">{Math.round(sel.current_w)} W aktuell</span>
-                    {/if}
-                    <span class="rounded-full bg-blue-500/10 text-blue-400 px-2 py-0.5">{sel.widget_count} Widget(s)</span>
-                    {#if sel.signal_count}
-                      <span class="text-slate-500">{sel.signal_count} Signale</span>
-                    {/if}
-                    {#if sel.current_w == null && sel.power_signals === 0}
-                      <span class="text-slate-600 truncate">keine Leistungssignale</span>
-                    {/if}
-                    <button class="btn btn-primary text-xs ml-auto !px-3 !py-1.5" onclick={() => openDashboard(sel.id)}>Öffnen &rarr;</button>
-                  </div>
-                {/if}
-              </div>
-            </div>
-          </div>
-
         </div>
       {/if}
     </div>
+  </div>
+
+  <!-- Dashboards: Vollbreite mit Sub-Karten -->
+  <div class="mt-6 card">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-bold flex items-center gap-2">
+        <Icon name="dashboard" size={20} /> Dashboards
+      </h2>
+      <div class="flex items-center gap-2">
+        {#if addError}
+          <span class="text-xs text-red-400">{addError}</span>
+        {/if}
+        <button class="btn btn-primary text-xs !px-4 !py-1.5" onclick={addDashboard}>+ Neues Dashboard</button>
+      </div>
+    </div>
+
+    {#if dashboardList.length === 0}
+      <p class="text-slate-500 text-sm">Noch keine Dashboards. Lege eins an, um deine Kanäle zu visualisieren.</p>
+    {:else}
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {#each dashboardList as d}
+          <button
+            class="card text-left hover:border-blue-500/40 transition-colors cursor-pointer flex flex-col gap-3"
+            onclick={() => openDashboard(d.id)}
+          >
+            <div class="flex items-center gap-3 min-w-0">
+              <span class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style="background: rgba(96,165,250,0.15)">
+                <Icon name="dashboard" size={20} />
+              </span>
+              <div class="min-w-0 flex-1">
+                <div class="font-bold truncate">{d.name || 'Dashboard'}</div>
+                <div class="text-xs text-slate-500">
+                  {d.widget_count ?? 0} Widget(s){d.signal_count ? ` &middot; ${d.signal_count} Signale` : ''}
+                </div>
+              </div>
+              <span class="text-slate-600 text-sm">→</span>
+            </div>
+            <div class="flex items-baseline gap-2">
+              <span class="text-2xl font-bold tabular-nums">{d.kwh != null ? d.kwh.toFixed(1) : '&ndash;'}</span>
+              <span class="text-xs text-slate-500">kWh (24h)</span>
+              {#if d.current_w != null}
+                <span class="ml-auto text-xs rounded-full bg-cyan-500/10 text-cyan-400 px-2 py-0.5">{Math.round(d.current_w)} W</span>
+              {/if}
+              {#if d.cost != null}
+                <span class="ml-auto text-xs font-semibold text-emerald-400">{d.cost.toFixed(2)} &euro;</span>
+              {/if}
+            </div>
+          </button>
+        {/each}
+      </div>
+    {/if}
   </div>
 
   <!-- Full-width history -->
