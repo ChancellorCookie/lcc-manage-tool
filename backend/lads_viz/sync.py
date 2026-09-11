@@ -5,7 +5,7 @@ Server-Adressraum-Änderungen (ns-Index-Rebuild) automatisch geheilt werden.
 """
 import logging
 
-from . import db, opcua
+from . import db, opcua, seed
 
 log = logging.getLogger("lads_viz.sync")
 
@@ -65,4 +65,9 @@ async def rediscover(server_id: int) -> dict:
             devices_added += 1
 
     await d.commit()
+    # Seed-Dashboard anlegen (nur wenn noch keines existiert)
+    try:
+        await seed.seed_demo_dashboard()
+    except Exception:
+        log.exception("Seed-Dashboard fehlgeschlagen (non-fatal)")
     return {"devices_added": devices_added, "total_devices": len(devices)}

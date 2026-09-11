@@ -18,6 +18,7 @@
   let notifierLoading = $state(true)
   let notifierError = $state('')
   let offlineStats = $state(null)
+  let dashboardCount = $state(0)
 
   let pollTimer = $state(null)
 
@@ -41,6 +42,11 @@
       const devs = data.devices || []
       deviceTotal = devs.length
       deviceOnline = devs.filter(d => d.online === 1).length
+    } catch { /* ignore */ }
+    try {
+      const r = await fetch('/api/viz/dashboards')
+      const d = await r.json()
+      dashboardCount = Array.isArray(d) ? d.length : 0
     } catch { /* ignore */ }
     managerLoading = false
   }
@@ -203,6 +209,24 @@
                 <span class="w-2 h-2 rounded-full bg-red-400 ml-auto"></span>
                 <span class="text-red-400">Nicht verbunden</span>
               {/if}
+            </div>
+          </button>
+
+          <!-- Dashboards -->
+          <button class="card w-full text-left hover:border-blue-500/40 transition-colors cursor-pointer flex-1 flex flex-col" onclick={() => navigate('dashboards')}>
+            <div class="flex items-center gap-4">
+              <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style="background: rgba(96,165,250,0.15)">
+                <Icon name="dashboard" size={20} />
+              </div>
+              <div>
+                <h3 class="text-lg font-bold">Dashboards</h3>
+                <p class="text-xs text-slate-500">Verbrauch &amp; Sensordaten visualisieren (OPC UA)</p>
+              </div>
+              <span class="ml-auto text-slate-600 text-sm">→</span>
+            </div>
+            <div class="flex items-center gap-2 text-sm mt-auto pb-1">
+              <span class="w-2 h-2 rounded-full bg-blue-400"></span>
+              <span class="text-slate-400">{dashboardCount} Dashboard(s)</span>
             </div>
           </button>
         </div>

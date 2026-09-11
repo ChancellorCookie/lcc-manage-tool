@@ -205,3 +205,25 @@ label {
   from { opacity: 0; }
   to { opacity: 1; }
 }
+
+/* ── LADS-Visualize-Pages (Dashboards) ───────────────────────── */
+/* Scoped unter .viz-root, damit LCCs eigene Tailwind-Buttons unberührt bleiben. */
+.viz-root button {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: transparent; color: var(--text-muted);
+  border: 1px solid var(--border-strong); border-radius: 0.5rem;
+  padding: 7px 13px; font-size: 13px; font-weight: 500; cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.viz-root button:hover { background: var(--hover-bg); color: var(--text); }
+.viz-root button.primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+.viz-root button.primary:hover { background: #1d4ed8; border-color: #1d4ed8; }
+.viz-root button.danger { background: transparent; border-color: #dc2626; color: #f87171; }
+.viz-root button.danger:hover { background: #dc2626; border-color: #dc2626; color: #fff; }
+.viz-root button:disabled { opacity: 0.5; cursor: not-allowed; }
+.viz-root .muted { color: var(--text-muted); }
+.viz-root .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.viz-root .empty { text-align: center; color: var(--text-muted); padding: 32px 0; }
+.viz-root .small { font-size: 11px; }
+.viz-root .icon-btn { padding: 2px 8px; font-size: 13px; line-height: 1.4; border-radius: 6px; }
+.viz-root .hint { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-muted); font-size: 13px; text-align: center; padding: 16px; }

@@ -205,7 +205,7 @@
       {:else if page === 'incidents'}
               <Incidents initialTab={incidentsTab} />
             {:else if page === 'dashboards'}
-                    <VizDashboards />
+                    <div class="viz-root"><VizDashboards /></div>
                   {/if}
     </div>
   </main>
