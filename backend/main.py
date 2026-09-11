@@ -97,6 +97,15 @@ async def start_notifier():
     except Exception:
         log.exception("Failed to start Viz-Collector (non-fatal)")
 
+    # Viz-Auto-Rediscover: heilt ns-Rebuilds ohne manuelles Discover
+    try:
+        from backend.lads_viz import maintenance
+
+        asyncio.create_task(maintenance.run())
+        log.info("Viz-Auto-Rediscover background task started")
+    except Exception:
+        log.exception("Failed to start Viz-Auto-Rediscover (non-fatal)")
+
 
 # ── Error handler ─────────────────────────────────────────────────
 

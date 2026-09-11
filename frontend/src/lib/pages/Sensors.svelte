@@ -237,15 +237,17 @@
     await loadConfig()
     await loadServers()
     if (!servers.length) {
-      // Auto-Provision: Server aus OPC_URL anlegen + discover
+      // Auto-Provision: Server aus OPC_URL anlegen
       try {
         await api.addServer({ name: 'LADSProxy', url: cfg.default_opcua_url })
         await loadServers()
       } catch (e) { /* ignore */ }
     }
     if (servers.length) {
-      await discover(servers[0].id)
+      // Liste sofort aus der DB laden (kein Discover nötig)
       await loadDevices(servers[0].id)
+      // Nur beim allerersten Mal (leer) automatisch entdecken
+      if (!devices.length) await discover(servers[0].id)
     }
   })
 </script>
@@ -268,9 +270,9 @@
       {#each servers as s}
         <span class="text-xs {activeServerId === s.id ? 'text-blue-400' : 'text-slate-300'}">{s.name}</span>
       {/each}
-      <button class="btn btn-primary" onclick={() => discover(servers[0]?.id)} disabled={discovering || !servers.length}>
-        {discovering ? '…' : 'Discover'}
-      </button>
+      <button class="btn btn-primary" onclick={() => discover(servers[0]?.id)} disabled={discovering || !servers.length} title="Geräte + Sensoren neu browsen (repariert ns-Rebuild)">
+              {discovering ? '…' : 'Rediscover'}
+            </button>
       <span class="text-xs text-slate-600 mx-1">·</span>
       <input placeholder="Name" bind:value={newName} class="!w-auto !py-1 text-xs" />
       <input placeholder="OPC-UA-URL" bind:value={newUrl} class="!w-auto !py-1 text-xs" style="min-width:220px" />
