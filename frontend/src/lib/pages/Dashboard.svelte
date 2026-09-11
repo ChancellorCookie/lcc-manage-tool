@@ -3,7 +3,7 @@
   import { onMount, onDestroy } from 'svelte'
   import Icon from '../Icon.svelte'
 
-  let { navigate, navTab } = $props()
+  let { navigate, navTab, openDashboard } = $props()
 
   // Manager stats
   let roomCount = $state(0)
@@ -18,7 +18,7 @@
   let notifierLoading = $state(true)
   let notifierError = $state('')
   let offlineStats = $state(null)
-  let dashboardCount = $state(0)
+  let dashboardList = $state([])
 
   let pollTimer = $state(null)
 
@@ -46,7 +46,7 @@
     try {
       const r = await fetch('/api/viz/dashboards')
       const d = await r.json()
-      dashboardCount = Array.isArray(d) ? d.length : 0
+      dashboardList = Array.isArray(d) ? d : []
     } catch { /* ignore */ }
     managerLoading = false
   }
@@ -212,27 +212,43 @@
             </div>
           </button>
 
-          <!-- Dashboards -->
-          <button class="card w-full text-left hover:border-blue-500/40 transition-colors cursor-pointer flex-1 flex flex-col" onclick={() => navigate('dashboards')}>
-            <div class="flex items-center gap-4">
-              <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style="background: rgba(96,165,250,0.15)">
-                <Icon name="dashboard" size={20} />
-              </div>
-              <div>
-                <h3 class="text-lg font-bold">Dashboards</h3>
-                <p class="text-xs text-slate-500">Verbrauch &amp; Sensordaten visualisieren (OPC UA)</p>
-              </div>
-              <span class="ml-auto text-slate-600 text-sm">→</span>
-            </div>
-            <div class="flex items-center gap-2 text-sm mt-auto pb-1">
-              <span class="w-2 h-2 rounded-full bg-blue-400"></span>
-              <span class="text-slate-400">{dashboardCount} Dashboard(s)</span>
-            </div>
-          </button>
         </div>
       {/if}
     </div>
   </div>
+
+  <!-- Dashboards (Statistik-Kacheln) -->
+  {#if dashboardList.length}
+    <div class="mt-6">
+      <div class="flex items-center gap-2 mb-4">
+        <Icon name="dashboard" size={20} />
+        <h2 class="text-lg font-bold">Dashboards</h2>
+        <span class="text-xs text-slate-600 ml-auto">{dashboardList.length} angelegt &middot; Kachel klicken = öffnen</span>
+      </div>
+      <div class="grid grid-cols-2 lg:grid-cols-3 gap-3">
+        {#each dashboardList as d}
+          <button
+            class="card flex flex-col gap-1.5 text-left hover:border-blue-500/40 transition-colors cursor-pointer"
+            onclick={() => openDashboard(d.id)}
+          >
+            <div class="flex items-center gap-2">
+              <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style="background: rgba(96,165,250,0.15)">
+                <Icon name="dashboard" size={18} />
+              </div>
+              <div class="min-w-0">
+                <div class="font-semibold truncate">{d.name}</div>
+                <div class="text-xs text-slate-500 truncate">{d.description || 'Keine Beschreibung'}</div>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 mt-auto pt-2 text-xs">
+              <span class="rounded-full bg-blue-500/10 text-blue-400 px-2 py-0.5">{d.widget_count} Widget(s)</span>
+              <span class="ml-auto text-slate-600">Öffnen &rarr;</span>
+            </div>
+          </button>
+        {/each}
+      </div>
+    </div>
+  {/if}
 
   <!-- Full-width history -->
   {#if !notifierLoading && notifierStats?.recent?.length}

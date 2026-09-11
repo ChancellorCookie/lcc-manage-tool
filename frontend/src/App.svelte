@@ -11,6 +11,7 @@
   let page = $state('dashboard')
   let collapsed = $state(true)
   let incidentsTab = $state('incidents')
+  let dashId = $state(null)
   let toastMsg = $state('')
   let toastType = $state('success')
   let toastTimer = $state(null)
@@ -18,8 +19,16 @@
 
   function navigate(p) {
     page = p
+    dashId = null
     collapsed = true
     history.pushState({ page: p }, '', `#/${p}`)
+  }
+
+  function openDashboard(id) {
+    page = 'dashboards'
+    dashId = id
+    collapsed = true
+    history.pushState({ page: 'dashboards', dashId: id }, '', `#/dashboards/${id}`)
   }
 
   function navTab(p, tab) {
@@ -42,15 +51,20 @@
     if (hash) {
       const parts = hash.split('/')
       page = parts[0]
-      if (parts[1]) incidentsTab = parts[1]
+      if (page === 'dashboards' && parts[1]) dashId = Number(parts[1])
+      else if (parts[1]) incidentsTab = parts[1]
     }
     // Handle browser back/forward AND manual hash changes
     function syncFromHash() {
       const raw = window.location.hash.replace('#/', '')
-      const [p, qs] = raw.split('?')
+      const [pathPart, qs] = raw.split('?')
+      const parts = pathPart.split('/')
+      const p = parts[0]
       if (p && p !== 'dashboard') {
         page = p
-        if (p === 'incidents' && qs) {
+        if (p === 'dashboards') {
+          dashId = parts[1] ? Number(parts[1]) : null
+        } else if (p === 'incidents' && qs) {
           const params = new URLSearchParams(qs)
           incidentsTab = params.get('tab') || 'incidents'
         }
@@ -63,6 +77,7 @@
       if (e.state?.page) {
         page = e.state.page
         if (e.state.tab) incidentsTab = e.state.tab
+        if (e.state.dashId !== undefined) dashId = e.state.dashId
       } else {
         syncFromHash()
       }
@@ -195,7 +210,7 @@
   <main class="flex-1 overflow-y-auto">
     <div class="mx-auto p-6 max-w-7xl">
       {#if page === 'dashboard'}
-        <Dashboard {navigate} {navTab} />
+        <Dashboard {navigate} {navTab} {openDashboard} />
       {:else if page === 'infrastructure'}
         <Infrastructure {showToast} />
       {:else if page === 'sensors'}
@@ -205,7 +220,7 @@
       {:else if page === 'incidents'}
               <Incidents initialTab={incidentsTab} />
             {:else if page === 'dashboards'}
-                    <div class="viz-root"><VizDashboards /></div>
+                    <div class="viz-root"><VizDashboards initialOpenId={dashId} /></div>
                   {/if}
     </div>
   </main>
