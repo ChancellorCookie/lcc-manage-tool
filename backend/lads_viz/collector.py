@@ -1,9 +1,10 @@
 """Collector: überwachte Sensoren zyklisch lesen und ins sensor_values-Store schreiben.
 
 Eigenes Zeitreihen-Store als Absicherung (unabhängig vom Server-History-Puffer):
-läuft als Hintergrund-Task, liest alle `monitored=1`-Signale in EINER OPC-UA-
-Verbindung und schreibt append-only (INSERT OR IGNORE). Robuster Umgang mit
-ns-Wandel/Bad-Status: einzelne Fehler werden übersprungen, der Loop läuft weiter.
+läuft als Hintergrund-Task, liest alle `historizing=1`-Signale (kein manuelles
+Anschalten nötig) in EINER OPC-UA-Verbindung und schreibt append-only
+(INSERT OR IGNORE). Robuster Umgang mit ns-Wandel/Bad-Status: einzelne Fehler
+werden übersprungen, der Loop läuft weiter.
 """
 import asyncio
 import logging
@@ -56,7 +57,7 @@ async def run(interval: int = DEFAULT_INTERVAL_S) -> None:
     log.info("Viz-Collector gestartet (Interval %ss)", interval)
     while True:
         try:
-            sigs = await db.monitored_signals()
+            sigs = await db.collectable_signals()
             if sigs:
                 vals = await _read_batch([s["node_id"] for s in sigs])
                 for s in sigs:

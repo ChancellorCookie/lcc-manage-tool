@@ -133,3 +133,12 @@ async def monitored_signals() -> list[dict]:
         "SELECT id, node_id, engineering_unit FROM signals WHERE monitored=1 AND node_id != ''"
     )
     return [dict(r) for r in await cur.fetchall()]
+
+
+async def collectable_signals() -> list[dict]:
+    """Alle Signale, die der Collector automatisch sammelt (historierend + node_id)."""
+    d = await get_db()
+    cur = await d.execute(
+        "SELECT id, node_id, engineering_unit FROM signals WHERE historizing=1 AND node_id != ''"
+    )
+    return [dict(r) for r in await cur.fetchall()]
