@@ -1,0 +1,29 @@
+# DEV-Deployment — parallel zur Produktion, isoliert über Projektnamen `lcc-tools-dev`.
+# Aufruf: docker compose -p lcc-tools-dev -f docker-compose.dev.yml up -d --build
+services:
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: lcc-tools-dev
+    restart: unless-stopped
+    ports:
+      - "9712:8701"
+    environment:
+      - LCC_HOST=10.89.11.52
+      - LCC_CLIENT_ID=iuta-notification
+      - LCC_CLIENT_SECRET=YF72ojKY99U
+      - OPC_URL=opc.tcp://10.89.11.52:4840
+      - DB_PATH=/app/data/lads_viz.db
+    volumes:
+      - ./config-dev:/app/config
+      - ./data-dev:/app/data
+
+  frontend:
+    build: ./frontend
+    container_name: lcc-tools-dev-frontend
+    restart: unless-stopped
+    ports:
+      - "9999:80"
+    depends_on:
+      - api
