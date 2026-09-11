@@ -12,7 +12,8 @@ import shutil
 import subprocess
 import sys
 
-OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data-dev", "storage.json")
+DEFAULT_OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data-dev", "storage.json")
+OUT = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_OUT
 GB = 1024 ** 3
 UNITS = {
     "B": 1e-9, "KB": 1e-6, "MB": 1e-3, "GB": 1.0, "TB": 1e3,
