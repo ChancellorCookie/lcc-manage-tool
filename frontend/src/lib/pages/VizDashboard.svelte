@@ -38,6 +38,7 @@
   let grid = null
   let saveTimer = 0
   let saveMsg = $state('')
+  let dataSourceInfo = $state('')
 
   async function reload() {
     try {
@@ -84,7 +85,28 @@
     await Promise.all(jobs)
     data = results
     consults = cons
+    dataSourceInfo = summarizeSources(results, cons)
     loading = false
+  }
+
+  // Woher kamen die angezeigten Verläufe? (lokale DB vs. OPC-UA-Nachladen)
+  function summarizeSources(respsById, consumeById) {
+    let dbP = 0
+    let fillP = 0
+    let calls = 0
+    const eat = (o) => {
+      if (!o || typeof o !== 'object' || o.source === undefined) return
+      calls++
+      dbP += o.db_points || 0
+      fillP += o.filled_points || 0
+    }
+    for (const arr of Object.values(respsById || {})) for (const r of arr) eat(r)
+    for (const c of Object.values(consumeById || {})) eat(c)
+    const fmt = (n) => n.toLocaleString('de-DE')
+    if (!calls) return ''
+    if (fillP === 0) return `Datenquelle: lokale Zeitreihen-DB (${fmt(dbP)} Punkte)`
+    if (dbP === 0) return `Datenquelle: OPC UA (${fmt(fillP)} Punkte nachgeladen)`
+    return `Datenquelle: lokale DB + ${fmt(fillP)} nachgeladene Punkte (OPC UA, jetzt archiviert)`
   }
 
   async function enterEdit() {
@@ -265,6 +287,9 @@
       </div>
       {#if saveMsg}
         <div class="muted small">{saveMsg}</div>
+      {/if}
+      {#if dataSourceInfo}
+        <div class="muted small">{dataSourceInfo}</div>
       {/if}
     </div>
 

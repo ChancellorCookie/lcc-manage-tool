@@ -314,17 +314,17 @@ async def signal_history(signal_id: int, start: str, end: str | None = None, poi
     else:
         end_dt = datetime.now(timezone.utc)
 
-    try:
-        raw = await history.read_history(row["server_url"], row["node_id"], start_dt, end_dt)
-    except Exception as e:
-        raise HTTPException(502, f"OPC-UA-HistoryRead-Fehler: {e}")
+    start_ms = int(start_dt.timestamp() * 1000)
+    end_ms = int(end_dt.timestamp() * 1000)
 
-    # Write-through: gelesene Rohpunkte ins eigene Zeitreihen-Store archivieren.
-    if raw:
-        try:
-            await db.insert_values(signal_id, raw)
-        except Exception:
-            pass  # Archivierung darf die Antwort nicht verhindern
+    # DB-first: lokale Zeitreihe lesen; nur fehlende Fenster per OPC UA nachladen
+    # (wird dabei ins Archiv geschrieben → Folgefragen kommen komplett aus der DB).
+    try:
+        raw, dmeta = await history.read_history_db_first(
+            row["server_url"], row["node_id"], signal_id, start_ms, end_ms
+        )
+    except Exception as e:
+        raise HTTPException(502, f"History-Fehler: {e}")
 
     pts = history.lttb(raw, max(2, points)) if points > 0 else raw
     stats = history.compute_stats(raw)
@@ -340,6 +340,9 @@ async def signal_history(signal_id: int, start: str, end: str | None = None, poi
         "points": [[x, y] for x, y in pts],
         "raw_count": len(raw),
         "stats": stats,
+        "source": dmeta["source"],
+        "db_points": dmeta["db_points"],
+        "filled_points": dmeta["filled_points"],
     }
 
 
@@ -401,18 +404,25 @@ async def stats_consumption(signals: str, start: str, end: str | None = None,
         for r in rows:
             by_url.setdefault(r["server_url"], []).append((r["id"], r["node_id"]))
         raw: dict = {}
+        hmeta: dict = {}
         for url, items in by_url.items():
             try:
-                rr = await history.read_histories(url, items, start_ms_, end_ms_)
+                rr, mm = await history.read_histories_db_first(url, items, start_ms_, end_ms_)
             except Exception as e:
-                raise HTTPException(502, f"OPC-UA-HistoryRead-Fehler: {e}")
+                raise HTTPException(502, f"History-Fehler: {e}")
             raw.update(rr)
+            hmeta.update(mm)
         metas = [
             {"id": m["id"], "unit": m["unit"], "device": m["device"],
              "location": m["location"], "browse_name": m["browse_name"]}
             for m in rows
         ]
-        return stats.consumption(metas, raw, start_ms_, end_ms_, bucket_, eur_)
+        result = stats.consumption(metas, raw, start_ms_, end_ms_, bucket_, eur_)
+        srcs = {v["source"] for v in hmeta.values()}
+        result["source"] = "db" if srcs == {"db"} else ("opcua" if srcs == {"opcua"} else "db+opcua")
+        result["db_points"] = sum(v["db_points"] for v in hmeta.values())
+        result["filled_points"] = sum(v["filled_points"] for v in hmeta.values())
+        return result
 
     return await compute(tuple(ids), start_ms, end_ms, bucket, eur_kwh)
 
