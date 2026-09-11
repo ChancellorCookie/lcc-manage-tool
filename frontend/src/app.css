@@ -5,9 +5,13 @@
 /* ── Theme variables ──────────────────────────────────────────── */
 :root {
   --bg: #020617;
-  --bg-card: rgba(15, 23, 42, 0.8);
-  --bg-input: #0f172a;
-  --border: rgba(51, 65, 85, 0.5);
+    --bg-card: rgba(15, 23, 42, 0.8);
+    --bg-input: #0f172a;
+    --surface: #0f172a;
+    --surface-2: #1e293b;
+    --red: #f87171;
+    --muted: #94a3b8;
+    --border: rgba(51, 65, 85, 0.5);
   --border-strong: #334155;
   --text: #e2e8f0;
   --text-muted: #94a3b8;
@@ -30,9 +34,13 @@
 
 html.light {
   --bg: #f8fafc;
-  --bg-card: rgba(255, 255, 255, 0.85);
-  --bg-input: #ffffff;
-  --border: rgba(203, 213, 225, 0.7);
+    --bg-card: rgba(255, 255, 255, 0.85);
+    --bg-input: #ffffff;
+    --surface: #ffffff;
+    --surface-2: #f1f5f9;
+    --red: #dc2626;
+    --muted: #64748b;
+    --border: rgba(203, 213, 225, 0.7);
   --border-strong: #cbd5e1;
   --text: #1e293b;
   --text-muted: #64748b;

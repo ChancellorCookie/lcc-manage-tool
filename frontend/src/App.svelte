@@ -4,7 +4,8 @@
   import Sensors from './lib/pages/Sensors.svelte'
   import SensorHistory from './lib/pages/SensorHistory.svelte'
   import Incidents from './lib/pages/Incidents.svelte'
-  import Icon from './lib/Icon.svelte'
+    import VizDashboards from './lib/pages/VizDashboards.svelte'
+    import Icon from './lib/Icon.svelte'
   import { onMount } from 'svelte'
 
   let page = $state('dashboard')
@@ -98,8 +99,9 @@
     { id: 'infrastructure', label: 'Infrastructure', icon: 'rooms' },
     { id: 'sensors', label: 'Sensors', icon: 'sensors' },
     { id: 'sensorhistory', label: 'History', icon: 'gateways' },
-    { id: 'incidents', label: 'Incidents', icon: 'incidents' },
-  ]
+        { id: 'incidents', label: 'Incidents', icon: 'incidents' },
+        { id: 'dashboards', label: 'Dashboards', icon: 'dashboard' },
+      ]
 </script>
 
 <div class="flex flex-col h-screen overflow-hidden">
@@ -201,8 +203,10 @@
       {:else if page === 'sensorhistory'}
         <SensorHistory />
       {:else if page === 'incidents'}
-        <Incidents initialTab={incidentsTab} />
-      {/if}
+              <Incidents initialTab={incidentsTab} />
+            {:else if page === 'dashboards'}
+              <VizDashboards />
+            {/if}
     </div>
   </main>
 

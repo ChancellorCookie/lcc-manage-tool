@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [tailwindcss(), svelte()],
   server: {
     proxy: {
-      '/api': 'http://localhost:8701'
+      '/api': 'http://127.0.0.1:8701'
     }
   }
 })

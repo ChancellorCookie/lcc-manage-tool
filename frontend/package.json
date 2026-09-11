@@ -18,6 +18,8 @@
   "dependencies": {
     "chart.js": "^4.5.1",
     "chartjs-adapter-date-fns": "^3.0.0",
-    "date-fns": "^4.4.0"
+    "date-fns": "^4.4.0",
+    "gridstack": "^13.2.0",
+    "uplot": "^1.6.32"
   }
 }
