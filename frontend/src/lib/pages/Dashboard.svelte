@@ -22,6 +22,25 @@
   let dashboardList = $state([])
   let addError = $state('')
 
+  // Kachel-Quickinfo je Dashboard (localStorage, rein frontend-seitig)
+  const TILE_KEY = 'lcc-tile-quickinfo'
+  let tileMetrics = $state({})
+  function loadTileMetrics() {
+    try { tileMetrics = JSON.parse(localStorage.getItem(TILE_KEY) || '{}') } catch { tileMetrics = {} }
+  }
+  function saveTileMetric(id, metric) {
+    tileMetrics = { ...tileMetrics, [id]: metric }
+    try { localStorage.setItem(TILE_KEY, JSON.stringify(tileMetrics)) } catch { /* ignore */ }
+  }
+  function tileMetric(id) { return tileMetrics[id] || 'all' }
+
+  // Strompreis (€/kWh, global) — Backend: Settings-API (/api/viz/settings)
+  let eurPerKwh = $state(0.32)
+  let settingsOpen = $state(false)
+  let settingsSaving = $state(false)
+  let settingsError = $state('')
+  let settingsMsg = $state('')
+
   async function addDashboard() {
     addError = ''
     try {
@@ -72,7 +91,35 @@
           : []
       } catch { /* ignore */ }
     }
+    try {
+      const s = await vizApi.settings()
+      eurPerKwh = s.eur_per_kwh ?? 0.32
+    } catch { /* ignore */ }
     managerLoading = false
+  }
+
+  async function saveSettings() {
+    settingsSaving = true
+    settingsError = ''
+    settingsMsg = ''
+    const v = Number(eurPerKwh)
+    if (!Number.isFinite(v) || v < 0) {
+      settingsError = 'Bitte einen gültigen Wert ≥ 0 eingeben.'
+      settingsSaving = false
+      return
+    }
+    try {
+      await vizApi.updateSettings({ eur_per_kwh: v })
+      settingsMsg = 'Gespeichert — Kacheln aktualisiert.'
+      await loadManager()
+      setTimeout(() => {
+        settingsOpen = false
+        settingsMsg = ''
+      }, 700)
+    } catch (e) {
+      settingsError = e.message
+    }
+    settingsSaving = false
   }
 
   async function loadNotifier() {
@@ -90,6 +137,7 @@
   }
 
   onMount(() => {
+    loadTileMetrics()
     loadManager()
     loadNotifier()
     pollTimer = setInterval(loadNotifier, 30_000)
@@ -133,6 +181,9 @@
           {#if addError}
             <span class="text-xs text-red-400">{addError}</span>
           {/if}
+          <button class="btn btn-ghost text-xs !px-4 !py-1.5" title="Kacheln & Strompreis" onclick={() => { settingsOpen = true; settingsError = ''; settingsMsg = '' }}>
+            ⚙ Kacheln
+          </button>
           <button class="btn btn-primary text-xs !px-4 !py-1.5" onclick={addDashboard}>+ Neues Dashboard</button>
         </div>
       </div>
@@ -142,7 +193,11 @@
       {:else}
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {#each dashboardList as d}
-            <button
+            {@const metric = tileMetric(d.id)}
+            {@const hasKwh = d.kwh != null}
+            {@const hasW = d.current_w != null}
+            {@const hasCost = d.cost != null}
+            <div
               class="card text-left hover:border-blue-500/40 transition-colors cursor-pointer flex flex-col gap-3"
               onclick={() => openDashboard(d.id)}
             >
@@ -156,26 +211,55 @@
                     {d.widget_count ?? 0} Widget(s){d.signal_count ? ` &middot; ${d.signal_count} Signale` : ''}
                   </div>
                 </div>
-                <span class="text-slate-600 text-sm">→</span>
+                <select
+                  class="text-xs"
+                  style="width:auto; padding:0.25rem 0.4rem; font-size:0.7rem; border-radius:0.375rem; background:rgba(51,65,85,0.4); border-color:rgba(100,116,139,0.5); color:#cbd5e1; flex-shrink:0"
+                  value={metric}
+                  onclick={(e) => e.stopPropagation()}
+                  onchange={(e) => saveTileMetric(d.id, e.currentTarget.value)}
+                  title="Quickinfo dieser Kachel wählen"
+                >
+                  <option value="all">kWh + W + Kosten</option>
+                  <option value="kwh">Nur kWh</option>
+                  <option value="w">Nur aktuelle W</option>
+                  <option value="cost">Nur Kosten €</option>
+                </select>
               </div>
-              <div class="flex items-baseline gap-2">
-                <span class="text-2xl font-bold tabular-nums">{d.kwh != null ? d.kwh.toFixed(1) : '&ndash;'}</span>
-                <span class="text-xs text-slate-500">kWh (24h)</span>
-                {#if d.current_w != null}
-                  <span class="ml-auto text-xs rounded-full bg-cyan-500/10 text-cyan-400 px-2 py-0.5">{Math.round(d.current_w)} W</span>
-                {/if}
-                {#if d.cost != null}
-                  <span class="ml-auto text-xs font-semibold text-emerald-400">{d.cost.toFixed(2)} &euro;</span>
-                {/if}
-              </div>
-            </button>
+              {#if metric === 'all'}
+                <div class="flex items-baseline gap-2">
+                  <span class="text-2xl font-bold tabular-nums">{hasKwh ? d.kwh.toFixed(1) : '–'}</span>
+                  <span class="text-xs text-slate-500">kWh (24h)</span>
+                  {#if hasW}
+                    <span class="ml-auto text-xs rounded-full bg-cyan-500/10 text-cyan-400 px-2 py-0.5">{Math.round(d.current_w)} W</span>
+                  {/if}
+                  {#if hasCost}
+                    <span class="ml-auto text-xs font-semibold text-emerald-400">{d.cost.toFixed(2)} &euro;</span>
+                  {/if}
+                </div>
+              {:else if metric === 'kwh'}
+                <div class="flex items-baseline gap-2">
+                  <span class="text-2xl font-bold tabular-nums">{hasKwh ? d.kwh.toFixed(1) : '–'}</span>
+                  <span class="text-xs text-slate-500">kWh (24h)</span>
+                </div>
+              {:else if metric === 'w'}
+                <div class="flex items-baseline gap-2">
+                  <span class="text-2xl font-bold tabular-nums">{hasW ? Math.round(d.current_w) : '–'}</span>
+                  <span class="text-xs text-slate-500">W aktuell</span>
+                </div>
+              {:else if metric === 'cost'}
+                <div class="flex items-baseline gap-2">
+                  <span class="text-2xl font-bold tabular-nums">{hasCost ? d.cost.toFixed(2) : '–'}</span>
+                  <span class="text-xs text-slate-500">&euro; (24h)</span>
+                </div>
+              {/if}
+            </div>
           {/each}
         </div>
       {/if}
     </div>
 
   <!-- Split Layout -->
-  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+  <div class="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
     <!-- LEFT: Notifier -->
     <div class="flex flex-col">
       <div class="flex items-center gap-2 mb-4">
@@ -316,6 +400,33 @@
             {/each}
           </tbody>
         </table>
+      </div>
+    </div>
+  {/if}
+
+  <!-- Einstellungen: Strompreis (€/kWh) für Kachel-Kosten -->
+  {#if settingsOpen}
+    <div class="fixed inset-0 z-50 flex items-center justify-center" style="background: rgba(0,0,0,0.6)" onclick={(e) => e.target === e.currentTarget && (settingsOpen = false)}>
+      <div class="card" style="width:min(440px,94vw); max-height:80vh; overflow:auto">
+        <h2 class="text-lg font-bold mb-1">Kachel-Einstellungen</h2>
+        <p class="text-xs text-slate-500 mb-4">Gilt global: Kosten auf den Startseiten-Kacheln und in den Kosten-Charts (Balken).</p>
+        {#if settingsError}
+          <p class="text-xs text-red-400 mb-2">{settingsError}</p>
+        {/if}
+        {#if settingsMsg}
+          <p class="text-xs text-emerald-400 mb-2">{settingsMsg}</p>
+        {/if}
+        <label class="block text-xs text-slate-400 uppercase tracking-wide mb-1">Strompreis (€/kWh)</label>
+        <div class="flex gap-2">
+          <input type="number" step="0.01" min="0" class="flex-1" bind:value={eurPerKwh} placeholder="z. B. 0,32" />
+          <button class="btn btn-primary text-xs !px-4 flex-shrink-0" disabled={settingsSaving} onclick={saveSettings}>
+            {settingsSaving ? 'Speichert…' : 'Speichern'}
+          </button>
+        </div>
+        <p class="text-xs text-slate-500 mt-3">Standard bei fehlendem Wert: 0,32 €/kWh.</p>
+        <div class="flex justify-end mt-4">
+          <button class="btn btn-ghost text-xs" onclick={() => (settingsOpen = false)}>Schließen</button>
+        </div>
       </div>
     </div>
   {/if}

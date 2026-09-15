@@ -229,3 +229,8 @@ def cached(fn):
         _CACHE[key] = (now, result)
         return result
     return wrapper
+
+
+def clear_cache():
+    """Nach Config-Änderungen (z. B. Strompreis) leeren, damit Kachel-Kosten frisch sind."""
+    _CACHE.clear()

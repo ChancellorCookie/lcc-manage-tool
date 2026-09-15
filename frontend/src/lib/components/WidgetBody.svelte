@@ -97,6 +97,10 @@
   {/if}
 {:else if widget.type === 'usage'}
   <UsageView data={usage} thresholds={{ start: widget.config?.startThreshold ?? 10, stop: widget.config?.stopThreshold ?? 5 }}></UsageView>
+{:else if widget.type === 'usagestats'}
+  <UsageView data={usage} variant="stats" thresholds={{ start: widget.config?.startThreshold ?? 10, stop: widget.config?.stopThreshold ?? 5 }}></UsageView>
+{:else if widget.type === 'usageline'}
+  <UsageView data={usage} variant="timeline" thresholds={{ start: widget.config?.startThreshold ?? 10, stop: widget.config?.stopThreshold ?? 5 }}></UsageView>
 {:else if widget.type === 'table'}
   <SignalTable {responses} {editable} {onAddSignal} {onRemoveSignal} />
 {/if}

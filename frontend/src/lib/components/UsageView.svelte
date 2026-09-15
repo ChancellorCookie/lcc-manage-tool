@@ -1,6 +1,7 @@
 <script>
   // Nutzungsanalyse-Widget: Kacheln (Dauer / Auslastung) + Aktivitäts-Timeline.
-  let { data = null, thresholds = null } = $props()
+  // variant: 'both' (Standard) | 'stats' (nur Kacheln) | 'timeline' (nur Historie)
+  let { data = null, thresholds = null, variant = 'both' } = $props()
 
   const fmtDur = (s) => {
     s = Math.max(0, Math.round(s || 0))
@@ -45,6 +46,7 @@
   {@const st = data.stats}
   {@const signals = data.signals || []}
   <div class="uvw">
+    {#if variant !== 'timeline'}
     <!-- Kacheln -->
     <div class="uv-stats">
       <div class="uv-box strong">
@@ -77,7 +79,9 @@
         {#each signals as s}<span class="uv-chip">{s.device} — {s.browse_name}</span>{/each}
       </div>
     {/if}
+    {/if}
 
+    {#if variant !== 'stats'}
     <!-- Timeline -->
     <div class="uv-tl">
       {#if rows.length}
@@ -107,6 +111,7 @@
         <div class="hint">Keine Nutzungsphasen im Zeitraum — Werte bleiben unter der Startschwelle.</div>
       {/if}
     </div>
+    {/if}
   </div>
 {:else}
   <div class="hint">Keine Signale zugewiesen — im Editor bearbeiten (⚙)</div>

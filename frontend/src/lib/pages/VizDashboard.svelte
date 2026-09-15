@@ -75,7 +75,8 @@
     for (const w of widgets) {
           const ids = w.config?.signals || []
           const isBar = (w.type === 'charttable' || w.type === 'linechart') && w.config?.mode === 'bar'
-          if (ids.length && w.type === 'usage') {
+          const isUsage = w.type === 'usage' || w.type === 'usagestats' || w.type === 'usageline'
+          if (ids.length && isUsage) {
             jobs.push(
               api.usage(ids, sISO, eISO, w.config?.startThreshold ?? 600, w.config?.stopThreshold ?? 100)
                 .then((u) => { usage[w.id] = u })
@@ -214,11 +215,13 @@
         stat: { signals: [] },
         table: { signals: [] },
         usage: { signals: [], startThreshold: 600, stopThreshold: 100 },
+        usagestats: { signals: [], startThreshold: 600, stopThreshold: 100 },
+        usageline: { signals: [], startThreshold: 600, stopThreshold: 100 },
       }
       try {
         await api.addWidget(dash.id, {
           type,
-          title: { linechart: 'Neues Linechart', charttable: 'Neue Leistung & Tabelle', stat: 'Neue Statistik', table: 'Neue Tabelle', usage: 'Nutzungsanalyse' }[type] || 'Neues Widget',
+          title: { linechart: 'Neues Linechart', charttable: 'Neue Leistung & Tabelle', stat: 'Neue Statistik', table: 'Neue Tabelle', usage: 'Nutzungsanalyse', usagestats: 'Nutzungs-Kacheln', usageline: 'Nutzungs-Historie' }[type] || 'Neues Widget',
           config: DEFAULTS[type] || { signals: [] },
           grid: {},
         })
@@ -246,7 +249,7 @@
   }
 
   function defaultTitle(w) {
-    return w.title || { linechart: 'Linechart', charttable: 'Leistung & Tabelle', stat: 'Statistik', table: 'Tabelle', usage: 'Nutzungsanalyse' }[w.type] || 'Widget'
+    return w.title || { linechart: 'Linechart', charttable: 'Leistung & Tabelle', stat: 'Statistik', table: 'Tabelle', usage: 'Nutzungsanalyse', usagestats: 'Nutzungs-Kacheln', usageline: 'Nutzungs-Historie' }[w.type] || 'Widget'
   }
 
   async function removeWidget(id) {
@@ -352,6 +355,8 @@
           <button class="primary" onclick={() => addWidget('charttable')}>+ Leistung & Tabelle</button>
           <button class="primary" onclick={() => addWidget('stat')}>+ Statistik</button>
           <button class="primary" onclick={() => addWidget('usage')}>+ Nutzungsanalyse</button>
+          <button class="primary" onclick={() => addWidget('usagestats')}>+ Nutzungs-Kacheln</button>
+          <button class="primary" onclick={() => addWidget('usageline')}>+ Nutzungs-Historie</button>
           <button class="primary" onclick={() => addWidget('table')}>+ Tabelle</button>
           <button class="primary" style="margin-left:auto" onclick={saveLayouts}>💾 Layout speichern</button>
         </div>
@@ -440,7 +445,7 @@
           {/each}
         {/if}
       </div>
-      {#if editType === 'usage'}
+      {#if editType === 'usage' || editType === 'usagestats' || editType === 'usageline'}
       <label class="lbl">Startschwelle (W)</label>
       <input type="number" bind:value={editStartTh} min="0" step="1" style="width:140px" />
       <p class="muted small" style="margin-top:4px">Gerät gilt als aktiv, sobald die Summe der Sensoren ≥ {editStartTh} W ist.</p>

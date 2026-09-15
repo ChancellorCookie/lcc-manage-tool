@@ -71,6 +71,8 @@ async def put_settings(body: SettingsIn):
             (str(body.eur_per_kwh),),
         )
         await d.commit()
+        # Kachel-/Kosten-Cache leeren, damit der neue Preis sofort greift
+        stats.clear_cache()
     return {"ok": True}
 
 
