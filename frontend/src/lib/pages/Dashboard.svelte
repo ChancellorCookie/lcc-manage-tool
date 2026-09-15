@@ -111,17 +111,68 @@
 
 <div>
   <!-- Hero Card -->
-  <div class="relative overflow-hidden rounded-2xl mb-6 p-8" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 50%, #1a1040 100%)">
-    <div class="absolute top-0 right-0 w-64 h-64 opacity-20" style="background: radial-gradient(circle, #3b82f6 0%, transparent 70%)"></div>
-    <div class="relative z-10">
-      <h1 class="text-3xl font-bold mb-2">
-        <span class="text-blue-400">LCC</span> Tools
-      </h1>
-      <p class="text-slate-400 max-w-lg">
-        Zentrale Verwaltung für das Waldner Lab Control Center: Räume, Gateways, OPC-UA-Sensoren und Incident-Monitoring mit Benachrichtigungen.
-      </p>
+  <div class="relative overflow-hidden rounded-2xl mb-6 p-8" style="background: linear-gradient(135deg, #005ea8 0%, #0f3d6e 100%)">
+      <div class="absolute top-0 right-0 w-64 h-64 opacity-20" style="background: radial-gradient(circle, #7fb2ff 0%, transparent 70%)"></div>
+      <div class="relative z-10">
+        <h1 class="text-3xl font-bold mb-2">
+          <span class="text-white">LCC</span> <span class="text-blue-200">Tools</span>
+        </h1>
+        <p class="text-blue-100/80 max-w-lg">
+          Zentrale Verwaltung für das Waldner Lab Control Center: Räume, Gateways, OPC-UA-Sensoren und Incident-Monitoring mit Benachrichtigungen.
+        </p>
+      </div>
     </div>
-  </div>
+
+    <!-- Dashboards: immer oben (Kacheln + Sub-Karten) -->
+    <div class="mt-6 card">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-bold flex items-center gap-2">
+          <Icon name="dashboard" size={20} /> Dashboards
+        </h2>
+        <div class="flex items-center gap-2">
+          {#if addError}
+            <span class="text-xs text-red-400">{addError}</span>
+          {/if}
+          <button class="btn btn-primary text-xs !px-4 !py-1.5" onclick={addDashboard}>+ Neues Dashboard</button>
+        </div>
+      </div>
+
+      {#if dashboardList.length === 0}
+        <p class="text-slate-500 text-sm">Noch keine Dashboards. Lege eins an, um deine Kanäle zu visualisieren.</p>
+      {:else}
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {#each dashboardList as d}
+            <button
+              class="card text-left hover:border-blue-500/40 transition-colors cursor-pointer flex flex-col gap-3"
+              onclick={() => openDashboard(d.id)}
+            >
+              <div class="flex items-center gap-3 min-w-0">
+                <span class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style="background: rgba(96,165,250,0.15)">
+                  <Icon name="dashboard" size={20} />
+                </span>
+                <div class="min-w-0 flex-1">
+                  <div class="font-bold truncate">{d.name || 'Dashboard'}</div>
+                  <div class="text-xs text-slate-500">
+                    {d.widget_count ?? 0} Widget(s){d.signal_count ? ` &middot; ${d.signal_count} Signale` : ''}
+                  </div>
+                </div>
+                <span class="text-slate-600 text-sm">→</span>
+              </div>
+              <div class="flex items-baseline gap-2">
+                <span class="text-2xl font-bold tabular-nums">{d.kwh != null ? d.kwh.toFixed(1) : '&ndash;'}</span>
+                <span class="text-xs text-slate-500">kWh (24h)</span>
+                {#if d.current_w != null}
+                  <span class="ml-auto text-xs rounded-full bg-cyan-500/10 text-cyan-400 px-2 py-0.5">{Math.round(d.current_w)} W</span>
+                {/if}
+                {#if d.cost != null}
+                  <span class="ml-auto text-xs font-semibold text-emerald-400">{d.cost.toFixed(2)} &euro;</span>
+                {/if}
+              </div>
+            </button>
+          {/each}
+        </div>
+      {/if}
+    </div>
 
   <!-- Split Layout -->
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
@@ -148,22 +199,22 @@
           ⚠ Notifier nicht erreichbar
         </div>
       {:else}
-        <div class="grid grid-cols-2 gap-3">
-          {#each statCards as card}
-            <button
-              class="card flex items-center gap-3 text-left hover:border-blue-500/40 transition-colors cursor-pointer"
-              onclick={card.click}
-            >
-              <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style="background: {card.color}">
-                <Icon name={card.icon} size={20} />
-              </div>
-              <div class="min-w-0">
-                <div class="text-xl font-bold">{card.value}</div>
-                <div class="text-xs text-slate-500 truncate">{card.label}</div>
-              </div>
-            </button>
-          {/each}
-        </div>
+        <div class="card flex-1 flex flex-col">
+                  <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {#each statCards as card}
+                      <button
+                        class="flex flex-col items-center gap-1.5 rounded-xl p-3 text-center hover:bg-slate-800/30 transition-colors cursor-pointer"
+                        onclick={card.click}
+                      >
+                        <div class="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style="background: {card.color}">
+                          <Icon name={card.icon} size={18} />
+                        </div>
+                        <div class="text-lg font-bold leading-tight">{card.value}</div>
+                        <div class="text-[11px] text-slate-500 leading-tight text-center truncate w-full max-w-full px-1">{card.label}</div>
+                      </button>
+                    {/each}
+                  </div>
+                </div>
       {/if}
     </div>
 
@@ -241,58 +292,7 @@
     </div>
   </div>
 
-  <!-- Dashboards: Vollbreite mit Sub-Karten -->
-  <div class="mt-6 card">
-    <div class="flex items-center justify-between mb-4">
-      <h2 class="text-lg font-bold flex items-center gap-2">
-        <Icon name="dashboard" size={20} /> Dashboards
-      </h2>
-      <div class="flex items-center gap-2">
-        {#if addError}
-          <span class="text-xs text-red-400">{addError}</span>
-        {/if}
-        <button class="btn btn-primary text-xs !px-4 !py-1.5" onclick={addDashboard}>+ Neues Dashboard</button>
-      </div>
-    </div>
-
-    {#if dashboardList.length === 0}
-      <p class="text-slate-500 text-sm">Noch keine Dashboards. Lege eins an, um deine Kanäle zu visualisieren.</p>
-    {:else}
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {#each dashboardList as d}
-          <button
-            class="card text-left hover:border-blue-500/40 transition-colors cursor-pointer flex flex-col gap-3"
-            onclick={() => openDashboard(d.id)}
-          >
-            <div class="flex items-center gap-3 min-w-0">
-              <span class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style="background: rgba(96,165,250,0.15)">
-                <Icon name="dashboard" size={20} />
-              </span>
-              <div class="min-w-0 flex-1">
-                <div class="font-bold truncate">{d.name || 'Dashboard'}</div>
-                <div class="text-xs text-slate-500">
-                  {d.widget_count ?? 0} Widget(s){d.signal_count ? ` &middot; ${d.signal_count} Signale` : ''}
-                </div>
-              </div>
-              <span class="text-slate-600 text-sm">→</span>
-            </div>
-            <div class="flex items-baseline gap-2">
-              <span class="text-2xl font-bold tabular-nums">{d.kwh != null ? d.kwh.toFixed(1) : '&ndash;'}</span>
-              <span class="text-xs text-slate-500">kWh (24h)</span>
-              {#if d.current_w != null}
-                <span class="ml-auto text-xs rounded-full bg-cyan-500/10 text-cyan-400 px-2 py-0.5">{Math.round(d.current_w)} W</span>
-              {/if}
-              {#if d.cost != null}
-                <span class="ml-auto text-xs font-semibold text-emerald-400">{d.cost.toFixed(2)} &euro;</span>
-              {/if}
-            </div>
-          </button>
-        {/each}
-      </div>
-    {/if}
-  </div>
-
-  <!-- Full-width history -->
+    <!-- Full-width history -->
   {#if !notifierLoading && notifierStats?.recent?.length}
     <div class="mt-6 card">
       <div class="flex items-center justify-between mb-3">

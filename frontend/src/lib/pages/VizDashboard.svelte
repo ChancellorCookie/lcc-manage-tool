@@ -20,6 +20,8 @@
   let widgets = $state([])
   let mode = $state('view') // 'view' | 'edit'
   let presetIdx = $state(2)
+  let offsetMs = $state(0) // Verschiebung relativ zu "jetzt" (negativ = Vergangenheit)
+  let rangeLabel = $state('')
   let data = $state({}) // widgetId -> [history responses]
   let loading = $state(false)
   let error = $state('')
@@ -58,10 +60,11 @@
 
   async function loadData() {
     if (!dash) return
-    const end = new Date()
-    const start = new Date(end.getTime() - PRESETS[presetIdx].h * 3600_000)
-    const sISO = start.toISOString()
-    const eISO = end.toISOString()
+    const end = new Date(Date.now() + offsetMs)
+        const start = new Date(end.getTime() - PRESETS[presetIdx].h * 3600_000)
+        const sISO = start.toISOString()
+        const eISO = end.toISOString()
+        rangeLabel = fmtRange(start, end, PRESETS[presetIdx].h)
     loading = true
     const results = {}
     const cons = {}
@@ -108,6 +111,14 @@
     if (fillP === 0) return `Datenquelle: lokale Zeitreihen-DB (${fmt(dbP)} Punkte)`
     if (dbP === 0) return `Datenquelle: OPC UA (${fmt(fillP)} Punkte nachgeladen)`
     return `Datenquelle: lokale DB + ${fmt(fillP)} nachgeladene Punkte (OPC UA, jetzt archiviert)`
+  }
+
+  function fmtRange(start, end, h) {
+    const dt = h < 24
+      ? { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }
+      : { day: '2-digit', month: '2-digit', year: 'numeric' }
+    const f = (d) => d.toLocaleDateString('de-DE', dt)
+    return `${f(start)} – ${f(end)}`
   }
 
   const filteredSensors = $derived(
@@ -287,8 +298,11 @@
       <div class="spacer"></div>
       <div class="row">
         {#each PRESETS as p, i}
-          <button class="preset" class:active={presetIdx === i} onclick={() => { presetIdx = i; loadData() }}>{p.label}</button>
-        {/each}
+                  <button class="preset" class:active={presetIdx === i} onclick={() => { presetIdx = i; offsetMs = 0; loadData() }}>{p.label}</button>
+                {/each}
+                <button class="preset" onclick={() => { offsetMs -= PRESETS[presetIdx].h * 3600_000; loadData() }} title="Zeitraum zurückblättern">◀</button>
+                <span class="muted small range-label">{rangeLabel}</span>
+                <button class="preset" disabled={offsetMs >= 0} onclick={() => { offsetMs += PRESETS[presetIdx].h * 3600_000; loadData() }} title="Zeitraum vorblättern">▶</button>
         <button disabled={loading} onclick={loadData}>{loading ? '…' : '⟳ Aktualisieren'}</button>
         {#if mode === 'edit'}
           <button class="danger" onclick={() => { mode = 'view'; saveMsg = '' }}>Fertig</button>
@@ -435,6 +449,7 @@
   .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   .spacer { flex: 1; }
   .preset.active { border-color: var(--accent); color: var(--accent); }
+  .range-label { font-variant-numeric: tabular-nums; white-space: nowrap; }
   .ghost { background: transparent; }
   .banner { padding: 10px 14px; border-radius: 8px; font-size: 13px; }
   .banner.error { background: rgba(181,83,74,0.15); border: 1px solid var(--red); color: #e0a09a; }
@@ -486,14 +501,16 @@
   .lbl { display: block; margin: 10px 0 4px; font-size: 12px; color: var(--muted); }
   .sig-list { max-height: 300px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 8px; display: flex; flex-direction: column; gap: 4px; }
   .sig-opt {
-    display: flex;
-    gap: 8px;
-    align-items: baseline;
-    padding: 4px 6px;
-    border-radius: 6px;
-    font-size: 13px;
-    cursor: pointer;
-  }
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      padding: 6px 8px;
+      border-radius: 6px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .sig-opt input { flex-shrink: 0; }
+    .sig-opt > span { flex: 1; min-width: 0; }
   .sig-opt:hover { background: var(--surface-2); }
   .seg { display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--text); padding: 4px 10px 4px 5px; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; }
   .seg:hover { background: var(--surface-2); }

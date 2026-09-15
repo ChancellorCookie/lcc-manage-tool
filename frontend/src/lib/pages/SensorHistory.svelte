@@ -28,8 +28,9 @@
     { label: '30d', hours: 720 },
   ]
   let selectedPreset = $state(2) // 24h
-  let customStart = $state('')
-  let customEnd = $state('')
+    let offsetMs = $state(0) // Preset-Verschiebung relativ zu "jetzt" (negativ = Vergangenheit)
+    let customStart = $state('')
+    let customEnd = $state('')
 
   onMount(async () => {
     loading = true
@@ -81,13 +82,25 @@
   }
 
   function getTimeRange() {
-    const now = new Date()
-    let start, end
-    end = customEnd ? new Date(customEnd + 'T23:59:59') : now
-    if (customStart) start = new Date(customStart + 'T00:00:00')
-    else start = new Date(end.getTime() - PRESETS[selectedPreset].hours * 3600_000)
-    return { start: start.toISOString(), end: end.toISOString() }
-  }
+      const now = new Date(Date.now() + offsetMs)
+      let start, end
+      end = customEnd ? new Date(customEnd + 'T23:59:59') : now
+      if (customStart) start = new Date(customStart + 'T00:00:00')
+      else start = new Date(end.getTime() - PRESETS[selectedPreset].hours * 3600_000)
+      return { start: start.toISOString(), end: end.toISOString() }
+    }
+
+    let rangeLabel = $derived.by(() => {
+      if (customStart) return `${customStart} – ${customEnd || 'heute'}`
+      const h = PRESETS[selectedPreset]?.hours || 24
+      const end = new Date(Date.now() + offsetMs)
+      const start = new Date(end.getTime() - h * 3600_000)
+      const dt = h < 24
+        ? { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }
+        : { day: '2-digit', month: '2-digit', year: 'numeric' }
+      const f = (d) => d.toLocaleDateString('de-DE', dt)
+      return `${f(start)} – ${f(end)}`
+    })
 
   async function fetchHistory() {
     if (!selectedSignal) return
@@ -156,11 +169,24 @@
     <div class="flex flex-wrap items-center gap-2">
       <span class="text-xs text-slate-500 mr-1">Zeitraum:</span>
       {#each PRESETS as p, i}
-        <button
-          class="px-3 py-1 rounded text-xs border transition-colors {selectedPreset === i && !customStart ? 'border-blue-500 bg-blue-500/10 text-blue-400' : 'border-slate-700 text-slate-400 hover:border-slate-600'}"
-          onclick={() => { selectedPreset = i; customStart = ''; customEnd = ''; fetchHistory() }}
-        >{p.label}</button>
-      {/each}
+              <button
+                class="px-3 py-1 rounded text-xs border transition-colors {selectedPreset === i && !customStart ? 'border-blue-500 bg-blue-500/10 text-blue-400' : 'border-slate-700 text-slate-400 hover:border-slate-600'}"
+                onclick={() => { selectedPreset = i; customStart = ''; customEnd = ''; offsetMs = 0; fetchHistory() }}
+              >{p.label}</button>
+            {/each}
+            <button
+              class="px-3 py-1 rounded text-xs border border-slate-700 text-slate-400 hover:border-slate-600 disabled:opacity-40 disabled:cursor-not-allowed"
+              disabled={!!customStart}
+              onclick={() => { offsetMs -= PRESETS[selectedPreset].hours * 3600_000; fetchHistory() }}
+              title="Zeitraum zurückblättern"
+            >◀</button>
+            <span class="text-xs text-slate-500 tabular-nums">{rangeLabel}</span>
+            <button
+              class="px-3 py-1 rounded text-xs border border-slate-700 text-slate-400 hover:border-slate-600 disabled:opacity-40 disabled:cursor-not-allowed"
+              disabled={!!customStart || offsetMs >= 0}
+              onclick={() => { offsetMs += PRESETS[selectedPreset].hours * 3600_000; fetchHistory() }}
+              title="Zeitraum vorblättern"
+            >▶</button>
       <span class="text-xs text-slate-600 mx-1">oder</span>
       <input type="date" class="!w-auto text-xs" bind:value={customStart} onchange={(e) => { customStart = e.target.value; selectedPreset = -1; fetchHistory() }} />
       <span class="text-xs text-slate-500">–</span>

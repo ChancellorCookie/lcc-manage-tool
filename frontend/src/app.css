@@ -33,28 +33,32 @@
 }
 
 html.light {
-  --bg: #f8fafc;
-    --bg-card: rgba(255, 255, 255, 0.85);
+    --bg: #ffffff;
+    --bg-card: #ffffff;
     --bg-input: #ffffff;
     --surface: #ffffff;
-    --surface-2: #f1f5f9;
+    --surface-2: #f4f6f8;
     --red: #dc2626;
-    --muted: #64748b;
-    --border: rgba(203, 213, 225, 0.7);
-  --border-strong: #cbd5e1;
-  --text: #1e293b;
-  --text-muted: #64748b;
-  --text-dim: #94a3b8;
-  --text-code: #059669;
-  --accent: #2563eb;
-  --sidebar-bg: rgba(248, 250, 252, 0.95);
-  --sidebar-border: #e2e8f0;
-  --hover-bg: rgba(241, 245, 249, 0.7);
-  --table-border: #f1f5f9;
-  --table-header-border: #e2e8f0;
-  --scrollbar-track: #f1f5f9;
-  --scrollbar-thumb: #cbd5e1;
-  --scrollbar-thumb-hover: #94a3b8;
+    --muted: #6b7280;
+    --border: #e4e4e4;
+    --border-strong: #d4d4d4;
+    --text: #1f1f1f;
+    --text-muted: #6b7280;
+    --text-dim: #9ca3af;
+    --text-code: #0d9668;
+    --accent: #147cf8;
+    --accent-2: #a78bfa;
+    --success: #14b884;
+    --danger: #dc2626;
+    --warning: #f59e0b;
+    --sidebar-bg: #ffffff;
+    --sidebar-border: #e4e4e4;
+    --hover-bg: rgba(15, 23, 42, 0.04);
+    --table-border: #f1f3f5;
+    --table-header-border: #e4e4e4;
+    --scrollbar-track: #f4f6f8;
+    --scrollbar-thumb: #d4d4d4;
+    --scrollbar-thumb-hover: #b8bec4;
 }
 
 /* ── Base ──────────────────────────────────────────────────── */
@@ -104,6 +108,17 @@ input:focus, select:focus, textarea:focus {
 input.w-auto, select.w-auto,
 input[class*="w-40"], input[class*="w-48"] {
   width: auto;
+}
+/* Checkboxen/Radios: nicht von der 100%-Breiten-Regel erfassen */
+input[type="checkbox"], input[type="radio"] {
+  width: auto;
+  height: auto;
+  padding: 0;
+  border: none;
+  background: none;
+  accent-color: var(--accent);
+  box-shadow: none;
+  flex-shrink: 0;
 }
 label {
   display: block;
@@ -227,3 +242,26 @@ label {
 .viz-root .small { font-size: 11px; }
 .viz-root .icon-btn { padding: 2px 8px; font-size: 13px; line-height: 1.4; border-radius: 6px; }
 .viz-root .hint { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-muted); font-size: 13px; text-align: center; padding: 16px; }
+
+/* ── Light-Mode-Korrekturen (Original-LCC-Palette) ───────────── */
+/* Dark-first gebaute Seiten (Incidents, NotifierConfig, Sensors, Rooms, Servers …)
+   nutzen harte Slate-Utilities. Im Light Mode werden diese hier auf helle
+   Flächen gemappt — ungelayerte Regeln schlagen die Tailwind-Utilities. */
+html.light .bg-slate-900 { background-color: #f4f6f8 !important; }
+html.light .bg-slate-900\/50 { background-color: rgba(15, 23, 42, 0.04) !important; }
+html.light .bg-slate-950\/60 { background-color: rgba(15, 23, 42, 0.05) !important; }
+html.light .bg-slate-800 { background-color: #e9edf1 !important; }
+html.light .bg-slate-800\/30 { background-color: rgba(15, 23, 42, 0.05) !important; }
+html.light .bg-slate-800\/40 { background-color: rgba(15, 23, 42, 0.06) !important; }
+html.light .hover\:bg-slate-800\/40:hover { background: rgba(15, 23, 42, 0.07) !important; }
+html.light .hover\:bg-slate-900\/40:hover { background: rgba(15, 23, 42, 0.05) !important; }
+html.light .border-slate-900 { border-color: #e4e4e4 !important; }
+html.light .border-slate-800 { border-color: #e4e4e4 !important; }
+html.light .border-slate-800\/30 { border-color: rgba(15, 23, 42, 0.08) !important; }
+html.light .border-slate-800\/50 { border-color: rgba(15, 23, 42, 0.1) !important; }
+html.light .border-slate-700 { border-color: #d8dbdf !important; }
+html.light .text-slate-200 { color: #1f2937 !important; }
+html.light .text-slate-300 { color: #374151 !important; }
+html.light .text-slate-400 { color: #6b7280 !important; }
+html.light .text-slate-500 { color: #6b7280 !important; }
+html.light .text-slate-600 { color: #555b62 !important; }
