@@ -488,7 +488,8 @@ async def dashboard_stats(window_h: int = 24):
         now_ms = int(time.time() * 1000)
         start_ms = now_ms - window_h_ * 3_600_000
         cur = await d.execute(
-            """SELECT db.id, db.name, db.description, w.id AS wid, w.config
+            """SELECT db.id, db.name, db.description, w.id AS wid,
+                      w.type AS wtype, w.title AS wtitle, w.config
                FROM dashboards db
                LEFT JOIN widgets w ON w.dashboard_id = db.id
                ORDER BY db.id, w.id"""
@@ -498,18 +499,25 @@ async def dashboard_stats(window_h: int = 24):
         for r in rows:
             if r["id"] not in dash:
                 dash[r["id"]] = {"id": r["id"], "name": r["name"], "description": r["description"],
-                                 "widget_count": 0, "signal_ids": set()}
+                                 "widget_count": 0, "signal_ids": set(), "widgets": []}
             if r["wid"] is not None:
-                dash[r["id"]]["widget_count"] += 1
+                dd = dash[r["id"]]
+                dd["widget_count"] += 1
                 try:
                     cfg = json.loads(r["config"] or "{}")
                 except Exception:
                     cfg = {}
+                wsignals = []
                 for s in cfg.get("signals") or []:
                     try:
-                        dash[r["id"]]["signal_ids"].add(int(s))
-                    except Exception:
+                        sid = int(s)
+                        wsignals.append(sid)
+                        dd["signal_ids"].add(sid)
+                    except (TypeError, ValueError):
                         pass
+                dd["widgets"].append({"id": r["wid"], "type": r["wtype"] or "",
+                                      "title": r["wtitle"] or "", "config": cfg,
+                                      "signals": wsignals})
 
         eur_kwh = 0.32
         srow = await (await d.execute("SELECT value FROM settings WHERE key='eur_per_kwh'")).fetchone()
@@ -541,6 +549,7 @@ async def dashboard_stats(window_h: int = 24):
             power_n = 0
             coverage_h = 0.0
             latest = []
+            sums: dict = {}  # sid -> {wh, cov, latest, last_ts, unit, is_power, component, name}
             for sid in ids:
                 meta = await signal_meta(sid)
                 if not meta:
@@ -553,28 +562,51 @@ async def dashboard_stats(window_h: int = 24):
                     (sid, start_ms, now_ms),
                 )
                 pts = [(r["ts"], r["value"]) for r in await rc.fetchall()]
+                wh = 0.0
+                cov = 0.0
                 if is_power:
                     wh, _avg, _part, cov = stats.window_summary(pts, start_ms, now_ms)
-                    if wh > 0:
-                        kwh_total += wh / 1000.0
-                        power_n += 1
-                        coverage_h += cov
                 rc = await d.execute(
                     "SELECT ts, value FROM sensor_values WHERE signal_id=? ORDER BY ts DESC LIMIT 1",
                     (sid,),
                 )
                 last = await rc.fetchone()
+                lastv = None
+                last_ts = None
                 if last:
+                    lastv = last["value"]
+                    last_ts = last["ts"]
                     latest.append({
                         "signal_id": sid,
                         "device": meta["component_name"] or "",
                         "name": meta["display_name"] or meta["browse_name"],
                         "unit": meta["unit"] or "",
-                        "value": last["value"],
-                        "ts": last["ts"],
+                        "value": lastv,
+                        "ts": last_ts,
                     })
-                    if is_power:
-                        current_w += last["value"]
+                sums[sid] = {
+                    "wh": wh, "cov": cov, "latest": lastv, "last_ts": last_ts,
+                    "unit": meta["unit"] or "", "is_power": is_power,
+                    "component": meta["component_name"] or "",
+                    "name": meta["display_name"] or meta["browse_name"],
+                }
+                if is_power and wh > 0:
+                    kwh_total += wh / 1000.0
+                    power_n += 1
+                    coverage_h += cov
+                if is_power and lastv is not None:
+                    current_w += lastv
+
+            # Widget-Quickinfos: je Widget die wichtigste Kennzahl für die Kachel
+            widgets_info = []
+            for w in dd["widgets"]:
+                qi = stats.widget_quickinfo(w, sums, eur_kwh)
+                if not qi:
+                    continue
+                title = w["title"] or stats.TYPE_TITLES.get(w["type"], "Widget")
+                widgets_info.append({"id": w["id"], "title": title,
+                                     "widget_type": w["type"], "quickinfo": qi})
+
             out.append({
                 "id": dd["id"],
                 "name": dd["name"],
@@ -587,6 +619,7 @@ async def dashboard_stats(window_h: int = 24):
                 "current_w": round(current_w, 1) if power_n else None,
                 "coverage_h": round(coverage_h, 2),
                 "latest": latest[:5],
+                "widgets": widgets_info,
             })
         return out
 

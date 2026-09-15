@@ -234,3 +234,70 @@ def cached(fn):
 def clear_cache():
     """Nach Config-Änderungen (z. B. Strompreis) leeren, damit Kachel-Kosten frisch sind."""
     _CACHE.clear()
+
+
+# ── Widget-Quickinfos (Startseiten-Kacheln) ───────────────────
+
+TYPE_TITLES = {
+    "usage": "Nutzungsanalyse",
+    "usagestats": "Nutzungs-Kacheln",
+    "usageline": "Nutzungs-Historie",
+    "linechart": "Linechart",
+    "charttable": "Leistung & Tabelle",
+    "stat": "Statistik",
+    "table": "Tabelle",
+}
+
+
+def widget_quickinfo(widget, sums, eur_kwh):
+    """Kurz-Kennzahlen eines Widgets für die Startseiten-Kachel (oberflächlich, DB-first).
+
+    widget: {"type", "title", "config", "signals": [sid]}
+    sums:   {sid: {"latest", "is_power", "wh", "unit"}}
+    -> {"kind": "usage"|"power"|"value", "metrics": [...], ...} oder None.
+    - usage/usagestats/usageline: Summe der letzten Werte vs. Schwellen -> Live-Status
+      (bewusst ohne vollen Hysterese-Lauf; state: use/idle/coast/nodata)
+    - charttable + bar (Leistung & Tabelle): kWh/Kosten/Leistung im Fenster
+    - stat / linechart ohne bar: letzter Wert des ersten Signals
+    """
+    t = widget.get("type") or ""
+    cfg = widget.get("config") or {}
+    sids = [s for s in (widget.get("signals") or []) if s in sums]
+    pws = [s for s in sids if sums[s]["is_power"]]
+    live = [s for s in pws if sums[s].get("latest") is not None]
+    if t in ("usage", "usagestats", "usageline"):
+        cur = round(sum(sums[s]["latest"] for s in live), 1)
+        if not pws or not live:
+            state, label = "nodata", "–"
+        else:
+            st_thr = float(cfg.get("startThreshold") or 600)
+            sp_thr = float(cfg.get("stopThreshold") or 100)
+            if cur >= st_thr:
+                state, label = "use", "In Nutzung"
+            elif cur <= sp_thr:
+                state, label = "idle", "Ruhend"
+            else:
+                state, label = "coast", "Auslaufend"
+        return {"kind": "usage", "metrics": ["status", "w"],
+                "state": state, "state_label": label, "current_w": cur}
+    if t in ("charttable", "linechart"):
+        bar = t == "charttable" or cfg.get("mode") == "bar"
+        if bar and pws:
+            kw = round(sum(sums[s]["wh"] for s in pws) / 1000.0, 2)
+            return {"kind": "power", "metrics": ["kwh", "cost", "w"],
+                    "kwh": kw,
+                    "cost": round(kw * eur_kwh, 2),
+                    "current_w": round(sum(sums[s]["latest"] for s in live), 1) if live else None}
+        if sids:
+            s0 = sids[0]
+            v = sums[s0].get("latest")
+            if v is not None:
+                return {"kind": "value", "metrics": ["value"],
+                        "value": v, "unit": sums[s0].get("unit") or ""}
+    if t == "stat" and sids:
+        s0 = sids[0]
+        v = sums[s0].get("latest")
+        if v is not None:
+            return {"kind": "value", "metrics": ["value"],
+                    "value": v, "unit": sums[s0].get("unit") or ""}
+    return None

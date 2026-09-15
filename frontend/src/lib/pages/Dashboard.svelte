@@ -34,6 +34,74 @@
   }
   function tileMetric(id) { return tileMetrics[id] || 'all' }
 
+  // Widget-Quickinfos je Dashboard-Kachel (localStorage): {widgetId: metric|'off'}
+  const CHIP_KEY = 'lcc-tile-chips-'
+  let chipConfigs = $state({}) // dashId -> {widgetId: metric|'off'}
+  function loadChips(id) {
+    try { return JSON.parse(localStorage.getItem(CHIP_KEY + id) || '{}') } catch { return {} }
+  }
+  function saveChips(id, cfg) {
+    chipConfigs = { ...chipConfigs, [id]: cfg }
+    try { localStorage.setItem(CHIP_KEY + id, JSON.stringify(cfg)) } catch { /* ignore */ }
+  }
+  const defaultChipMetric = (kind) => ({ usage: 'status', power: 'kwh', value: 'value' }[kind] || 'value')
+  function chipMetric(d, w) {
+    const cfg = chipConfigs[d.id] || {}
+    const m = cfg[w.id]
+    if (m === 'off') return null
+    if (m) return m
+    return defaultChipMetric(w.quickinfo?.kind)
+  }
+  function enabledChips(d) {
+    return (d.widgets || [])
+      .map((w) => ({ w, metric: chipMetric(d, w) }))
+      .filter((c) => c.metric && c.w.quickinfo)
+  }
+  const fmtChip = (v) => (v === null || v === undefined || Number.isNaN(v))
+    ? '–'
+    : Number(v).toLocaleString('de-DE', { maximumFractionDigits: 2 })
+
+  // Kachel-Editor (Stift) — Hauptwert + Widget-Quickinfos
+  let editTile = $state(null) // Dashboard-Objekt
+  let editMain = $state('all')
+  let editChips = $state([])  // [{widgetId, title, kind, metrics, enabled, metric}]
+  function openTileEditor(d) {
+    editMain = tileMetric(d.id)
+    editChips = (d.widgets || []).map((w) => {
+      const kind = w.quickinfo?.kind || 'value'
+      const cfg = chipConfigs[d.id] || {}
+      const m = cfg[w.id]
+      return {
+        widgetId: w.id,
+        title: w.title,
+        kind,
+        metrics: w.quickinfo?.metrics || ['value'],
+        enabled: m !== 'off',
+        metric: m && m !== 'off' ? m : defaultChipMetric(kind),
+      }
+    })
+    editTile = d
+  }
+  function onEditMain(v) {
+    editMain = v
+    if (editTile) saveTileMetric(editTile.id, v)
+  }
+  function onChipToggle(row) {
+    const d = editTile
+    if (!d) return
+    row.enabled = !row.enabled
+    const cfg = { ...(chipConfigs[d.id] || {}) }
+    cfg[row.widgetId] = row.enabled ? row.metric : 'off'
+    saveChips(d.id, cfg)
+  }
+  function onChipMetric(row) {
+    const d = editTile
+    if (!d || !row.enabled) return
+    const cfg = { ...(chipConfigs[d.id] || {}) }
+    cfg[row.widgetId] = row.metric
+    saveChips(d.id, cfg)
+  }
+
   // Strompreis (€/kWh, global) — Backend: Settings-API (/api/viz/settings)
   let eurPerKwh = $state(0.32)
   let settingsOpen = $state(false)
@@ -95,6 +163,9 @@
       const s = await vizApi.settings()
       eurPerKwh = s.eur_per_kwh ?? 0.32
     } catch { /* ignore */ }
+    for (const x of dashboardList) {
+      if (!chipConfigs[x.id]) chipConfigs[x.id] = loadChips(x.id)
+    }
     managerLoading = false
   }
 
@@ -141,10 +212,15 @@
     loadManager()
     loadNotifier()
     pollTimer = setInterval(loadNotifier, 30_000)
+    // Kachel-Daten (kWh/W/Status-Chips) regelmäßig auffrischen — Stats-Endpoint cached 60 s serverseitig
+    tilesTimer = setInterval(loadManager, 60_000)
   })
+
+  let tilesTimer = $state(null)
 
   onDestroy(() => {
     if (pollTimer) clearInterval(pollTimer)
+    if (tilesTimer) clearInterval(tilesTimer)
   })
 
   let statCards = $derived([
@@ -211,19 +287,11 @@
                     {d.widget_count ?? 0} Widget(s){d.signal_count ? ` &middot; ${d.signal_count} Signale` : ''}
                   </div>
                 </div>
-                <select
-                  class="text-xs"
-                  style="width:auto; padding:0.25rem 0.4rem; font-size:0.7rem; border-radius:0.375rem; background:rgba(51,65,85,0.4); border-color:rgba(100,116,139,0.5); color:#cbd5e1; flex-shrink:0"
-                  value={metric}
-                  onclick={(e) => e.stopPropagation()}
-                  onchange={(e) => saveTileMetric(d.id, e.currentTarget.value)}
-                  title="Quickinfo dieser Kachel wählen"
-                >
-                  <option value="all">kWh + W + Kosten</option>
-                  <option value="kwh">Nur kWh</option>
-                  <option value="w">Nur aktuelle W</option>
-                  <option value="cost">Nur Kosten €</option>
-                </select>
+                <button
+                  class="flex-shrink-0 w-7 h-7 rounded-md flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-700/50 transition-colors"
+                  onclick={(e) => { e.stopPropagation(); openTileEditor(d) }}
+                  title="Kachel bearbeiten (Hauptwert & Quickinfos)"
+                >✎</button>
               </div>
               {#if metric === 'all'}
                 <div class="flex items-baseline gap-2">
@@ -250,6 +318,32 @@
                 <div class="flex items-baseline gap-2">
                   <span class="text-2xl font-bold tabular-nums">{hasCost ? d.cost.toFixed(2) : '–'}</span>
                   <span class="text-xs text-slate-500">&euro; (24h)</span>
+                </div>
+              {/if}
+              {#if enabledChips(d).length}
+                <div class="flex flex-wrap gap-1.5">
+                  {#each enabledChips(d) as { w, metric: cm }}
+                    {@const q = w.quickinfo}
+                    <span
+                      class="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border border-slate-600/40 text-slate-300 whitespace-nowrap"
+                      title={w.title}
+                    >
+                      {#if q.kind === 'usage' && cm === 'status'}
+                        <span class="w-1.5 h-1.5 rounded-full {q.state === 'use' ? 'bg-emerald-400' : q.state === 'coast' ? 'bg-amber-400' : 'bg-slate-500'}"></span>
+                        {q.state_label}
+                      {:else if q.kind === 'usage' && cm === 'w'}
+                        {fmtChip(q.current_w)} W
+                      {:else if q.kind === 'power' && cm === 'kwh'}
+                        {fmtChip(q.kwh)} kWh
+                      {:else if q.kind === 'power' && cm === 'cost'}
+                        {fmtChip(q.cost)} &euro;
+                      {:else if q.kind === 'power' && cm === 'w'}
+                        {fmtChip(q.current_w)} W
+                      {:else if q.kind === 'value'}
+                        {fmtChip(q.value)}{q.unit ? ' ' + q.unit : ''}
+                      {/if}
+                    </span>
+                  {/each}
                 </div>
               {/if}
             </div>
@@ -426,6 +520,59 @@
         <p class="text-xs text-slate-500 mt-3">Standard bei fehlendem Wert: 0,32 €/kWh.</p>
         <div class="flex justify-end mt-4">
           <button class="btn btn-ghost text-xs" onclick={() => (settingsOpen = false)}>Schließen</button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  <!-- Kachel-Editor: Hauptwert + Widget-Quickinfos -->
+  {#if editTile}
+    <div class="fixed inset-0 z-50 flex items-center justify-center" style="background: rgba(0,0,0,0.6)" onclick={(e) => e.target === e.currentTarget && (editTile = null)}>
+      <div class="card" style="width:min(500px,94vw); max-height:82vh; overflow:auto">
+        <div class="flex items-center justify-between mb-1">
+          <h2 class="text-lg font-bold">Kachel bearbeiten</h2>
+          <button class="text-slate-400 hover:text-white text-lg leading-none" onclick={() => (editTile = null)}>✕</button>
+        </div>
+        <p class="text-xs text-slate-500 mb-4 truncate" title={editTile.name}>{editTile.name}</p>
+
+        <label class="block text-xs text-slate-400 uppercase tracking-wide mb-1">Hauptwert (große Zahl)</label>
+        <div class="flex flex-wrap gap-2 mb-5">
+          {#each [['all', 'kWh + W + Kosten'], ['kwh', 'Verbrauch (kWh)'], ['w', 'Leistung (W)'], ['cost', 'Kosten (€)']] as [val, txt]}
+            <button
+              class="text-xs rounded-md px-3 py-1.5 border transition-colors {editMain === val ? 'border-blue-500 text-blue-300 bg-blue-500/10' : 'border-slate-600/50 text-slate-400 hover:border-slate-500'}"
+              onclick={() => onEditMain(val)}
+            >{txt}</button>
+          {/each}
+        </div>
+
+        <label class="block text-xs text-slate-400 uppercase tracking-wide mb-1">Widget-Quickinfos</label>
+        <p class="text-[11px] text-slate-500 mb-2">Zeigt je Widget die wichtigste Kennzahl auf der Kachel — z. B. den Status der Nutzungsanalyse. Änderungen greifen sofort.</p>
+        {#if editChips.length}
+          <div class="flex flex-col gap-2">
+            {#each editChips as row}
+              <div class="flex items-center gap-2 rounded-lg border border-slate-700/60 px-2.5 py-2 {row.enabled ? '' : 'opacity-50'}">
+                <input type="checkbox" checked={row.enabled} onchange={() => onChipToggle(row)} />
+                <span class="text-sm flex-1 min-w-0 truncate" title={row.title}>{row.title}</span>
+                {#if row.enabled && row.metrics.length > 1}
+                  <select
+                    class="text-xs"
+                    style="width:auto; padding:0.2rem 0.4rem; font-size:0.75rem"
+                    value={row.metric}
+                    onchange={(e) => { row.metric = e.currentTarget.value; onChipMetric(row) }}
+                  >
+                    {#each row.metrics as m}
+                      <option value={m}>{ { status: 'Status', w: 'Leistung (W)', kwh: 'Verbrauch (kWh)', cost: 'Kosten (€)', value: 'Wert' }[m] || m }</option>
+                    {/each}
+                  </select>
+                {/if}
+              </div>
+            {/each}
+          </div>
+        {:else}
+          <p class="text-xs text-slate-500">Dieses Dashboard hat keine Widgets mit Quickinfo (z. B. nur Tabellen).</p>
+        {/if}
+        <div class="flex justify-end mt-4">
+          <button class="btn btn-ghost text-xs" onclick={() => (editTile = null)}>Fertig</button>
         </div>
       </div>
     </div>

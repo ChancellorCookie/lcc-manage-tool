@@ -96,7 +96,8 @@
     <div class="hint">Keine Signale zugewiesen — im Editor bearbeiten (⚙)</div>
   {/if}
 {:else if widget.type === 'usage'}
-  <UsageView data={usage} thresholds={{ start: widget.config?.startThreshold ?? 10, stop: widget.config?.stopThreshold ?? 5 }}></UsageView>
+  <!-- Nutzungsanalyse zeigt nur Kacheln; die Historie lebt im eigenen Widget (usageline) -->
+  <UsageView data={usage} variant="stats" thresholds={{ start: widget.config?.startThreshold ?? 10, stop: widget.config?.stopThreshold ?? 5 }}></UsageView>
 {:else if widget.type === 'usagestats'}
   <UsageView data={usage} variant="stats" thresholds={{ start: widget.config?.startThreshold ?? 10, stop: widget.config?.stopThreshold ?? 5 }}></UsageView>
 {:else if widget.type === 'usageline'}

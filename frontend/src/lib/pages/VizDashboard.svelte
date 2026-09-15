@@ -355,7 +355,6 @@
           <button class="primary" onclick={() => addWidget('charttable')}>+ Leistung & Tabelle</button>
           <button class="primary" onclick={() => addWidget('stat')}>+ Statistik</button>
           <button class="primary" onclick={() => addWidget('usage')}>+ Nutzungsanalyse</button>
-          <button class="primary" onclick={() => addWidget('usagestats')}>+ Nutzungs-Kacheln</button>
           <button class="primary" onclick={() => addWidget('usageline')}>+ Nutzungs-Historie</button>
           <button class="primary" onclick={() => addWidget('table')}>+ Tabelle</button>
           <button class="primary" style="margin-left:auto" onclick={saveLayouts}>💾 Layout speichern</button>
