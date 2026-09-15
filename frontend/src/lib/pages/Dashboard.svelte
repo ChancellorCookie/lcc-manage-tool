@@ -111,17 +111,17 @@
 
 <div>
   <!-- Hero Card -->
-  <div class="relative overflow-hidden rounded-2xl mb-6 p-8" style="background: linear-gradient(135deg, #005ea8 0%, #0f3d6e 100%)">
-      <div class="absolute top-0 right-0 w-64 h-64 opacity-20" style="background: radial-gradient(circle, #7fb2ff 0%, transparent 70%)"></div>
-      <div class="relative z-10">
-        <h1 class="text-3xl font-bold mb-2">
-          <span class="text-white">LCC</span> <span class="text-blue-200">Tools</span>
-        </h1>
-        <p class="text-blue-100/80 max-w-lg">
-          Zentrale Verwaltung für das Waldner Lab Control Center: Räume, Gateways, OPC-UA-Sensoren und Incident-Monitoring mit Benachrichtigungen.
-        </p>
+  <div class="relative overflow-hidden rounded-2xl mb-6 p-8" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 50%, #1a1040 100%)">
+        <div class="absolute top-0 right-0 w-64 h-64 opacity-20" style="background: radial-gradient(circle, #3b82f6 0%, transparent 70%)"></div>
+        <div class="relative z-10">
+          <h1 class="text-3xl font-bold mb-2">
+            <span class="text-blue-400">IUTA</span> LCC Tools
+          </h1>
+          <p class="text-slate-400 max-w-lg">
+            Zentrale Verwaltung für das Waldner Lab Control Center: Räume, Gateways, OPC-UA-Sensoren und Incident-Monitoring mit Benachrichtigungen.
+          </p>
+        </div>
       </div>
-    </div>
 
     <!-- Dashboards: immer oben (Kacheln + Sub-Karten) -->
     <div class="mt-6 card">

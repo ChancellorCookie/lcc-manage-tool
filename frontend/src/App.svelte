@@ -160,9 +160,9 @@
     {#if !collapsed}
       <div class="p-4 border-b border-slate-800">
         <h1 class="text-lg font-bold tracking-tight">
-          <span class="text-blue-400">LCC</span>
-          <span class="text-slate-400 ml-1">Tools</span>
-        </h1>
+                  <span class="text-blue-400">IUTA</span>
+                  <span class="text-slate-400 ml-1">LCC Tools</span>
+                </h1>
         <p class="text-xs text-slate-600 mt-0.5">Lab Control Center</p>
       </div>
 
