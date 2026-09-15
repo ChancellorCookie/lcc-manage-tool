@@ -1,11 +1,11 @@
 """API-Router: Server, OPC-UA-Discovery, Sensoren, History, Dashboards."""
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from . import config, db, history, opcua, stats, sync
+from . import config, db, history, opcua, stats, sync, usage as usage_mod
 
 router = APIRouter()
 
@@ -425,6 +425,44 @@ async def stats_consumption(signals: str, start: str, end: str | None = None,
         return result
 
     return await compute(tuple(ids), start_ms, end_ms, bucket, eur_kwh)
+
+
+@router.get("/usage")
+async def viz_usage(
+    signal_ids: str,
+    start: str = "",
+    end: str = "",
+    start_threshold: float = 10.0,
+    stop_threshold: float = 5.0,
+):
+    """Nutzungsanalyse: Hysterese auf der Summe mehrerer Indikator-Signale."""
+    ids = [int(x) for x in signal_ids.split(",") if x.strip()]
+    if not ids:
+        raise HTTPException(422, "signal_ids fehlt")
+    if start:
+        start_dt = datetime.fromisoformat(start.replace("Z", "+00:00"))
+    else:
+        start_dt = datetime.now(timezone.utc) - timedelta(days=1)
+    if end:
+        end_dt = datetime.fromisoformat(end.replace("Z", "+00:00"))
+    else:
+        end_dt = datetime.now(timezone.utc)
+    if start_dt.tzinfo is None:
+        start_dt = start_dt.replace(tzinfo=ZoneInfo("Europe/Berlin"))
+    if end_dt.tzinfo is None:
+        end_dt = end_dt.replace(tzinfo=ZoneInfo("Europe/Berlin"))
+    start_ms = int(start_dt.timestamp() * 1000)
+    end_ms = int(end_dt.timestamp() * 1000)
+    if end_ms <= start_ms:
+        raise HTTPException(400, "end muss nach start liegen")
+    try:
+        return await usage_mod.usage_analysis(ids, start_ms, end_ms, start_threshold, stop_threshold)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    except KeyError as e:
+        raise HTTPException(404, str(e))
+    except Exception as e:
+        raise HTTPException(502, f"Usage-Fehler: {e}")
 
 
 # ── Dashboard-Statistiken (Startseiten-Kacheln) ────────────────

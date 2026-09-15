@@ -40,6 +40,8 @@ export const api = {
   deleteWidget: (id) => j('DELETE', `/widgets/${id}`),
   consumption: (signals, start, end, bucket = 'auto', eurKwh) =>
     j('GET', `/stats/consumption?signals=${signals.join(',')}&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&bucket=${encodeURIComponent(bucket)}${eurKwh != null && !Number.isNaN(eurKwh) ? `&eur_kwh=${eurKwh}` : ''}`),
+  usage: (signals, start, end, startThreshold = 10, stopThreshold = 5) =>
+    j('GET', `/usage?signal_ids=${signals.join(',')}&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&start_threshold=${startThreshold}&stop_threshold=${stopThreshold}`),
   settings: () => j('GET', '/settings'),
   updateSettings: (s) => j('PUT', '/settings', s),
 }

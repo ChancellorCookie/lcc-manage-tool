@@ -33,7 +33,10 @@
   let editMode = $state('line')
   let editBarMode = $state('stacked')
   let editBucket = $state('auto')
-  let editEurKwh = $state('')
+    let editEurKwh = $state('')
+    let editStartTh = $state(600)
+    let editStopTh = $state(100)
+    let usage = $state({})
   let eurKwhGlobal = $state(0.32)
   let consults = $state({})
   let gridEl = $state(null)
@@ -70,9 +73,17 @@
     const cons = {}
     const jobs = []
     for (const w of widgets) {
-      const ids = w.config?.signals || []
-      const isBar = (w.type === 'charttable' || w.type === 'linechart') && w.config?.mode === 'bar'
-      if (ids.length && isBar) {
+          const ids = w.config?.signals || []
+          const isBar = (w.type === 'charttable' || w.type === 'linechart') && w.config?.mode === 'bar'
+          if (ids.length && w.type === 'usage') {
+            jobs.push(
+              api.usage(ids, sISO, eISO, w.config?.startThreshold ?? 600, w.config?.stopThreshold ?? 100)
+                .then((u) => { usage[w.id] = u })
+                .catch((e2) => { error = e2.message }),
+            )
+            continue
+          }
+          if (ids.length && isBar) {
         const eur = w.config?.eurKwh
         jobs.push(
           api.consumption(ids, sISO, eISO, w.config?.bucket || 'auto', eur != null && eur !== '' ? Number(eur) : undefined)
@@ -197,18 +208,25 @@
   }
 
   async function addWidget(type) {
-    try {
-      await api.addWidget(dash.id, {
-        type,
-        title: { linechart: 'Neues Linechart', charttable: 'Neue Leistung & Tabelle', stat: 'Neue Statistik', table: 'Neue Tabelle' }[type] || 'Neues Widget',
-        config: { signals: [] },
-        grid: {},
-      })
-      await reload()
-    } catch (e) {
-      error = e.message
+      const DEFAULTS = {
+        linechart: { signals: [] },
+        charttable: { signals: [] },
+        stat: { signals: [] },
+        table: { signals: [] },
+        usage: { signals: [], startThreshold: 600, stopThreshold: 100 },
+      }
+      try {
+        await api.addWidget(dash.id, {
+          type,
+          title: { linechart: 'Neues Linechart', charttable: 'Neue Leistung & Tabelle', stat: 'Neue Statistik', table: 'Neue Tabelle', usage: 'Nutzungsanalyse' }[type] || 'Neues Widget',
+          config: DEFAULTS[type] || { signals: [] },
+          grid: {},
+        })
+        await reload()
+      } catch (e) {
+        error = e.message
+      }
     }
-  }
 
   async function removeSignalFromWidget(widgetId, sigId) {
     const w = widgets.find((x) => x.id === widgetId)
@@ -228,7 +246,7 @@
   }
 
   function defaultTitle(w) {
-    return w.title || { linechart: 'Linechart', charttable: 'Leistung & Tabelle', stat: 'Statistik', table: 'Tabelle' }[w.type] || 'Widget'
+    return w.title || { linechart: 'Linechart', charttable: 'Leistung & Tabelle', stat: 'Statistik', table: 'Tabelle', usage: 'Nutzungsanalyse' }[w.type] || 'Widget'
   }
 
   async function removeWidget(id) {
@@ -249,14 +267,22 @@
     editMode = w.config?.mode || 'line'
     editBarMode = w.config?.barMode || 'stacked'
     editBucket = w.config?.bucket || 'auto'
-    editEurKwh = w.config?.eurKwh != null ? String(w.config.eurKwh) : ''
-  }
+        editEurKwh = w.config?.eurKwh != null ? String(w.config.eurKwh) : ''
+        editStartTh = w.config?.startThreshold ?? 600
+        editStopTh = w.config?.stopThreshold ?? 100
+      }
 
   async function saveSettings() {
     const w = widgets.find((x) => x.id === editingWidgetId)
     if (!w) return
     const cfg = { signals: editSignals }
-    if (editType === 'charttable' || editType === 'linechart') {
+        if (editType === 'usage') {
+          const s0 = Number(editStartTh)
+          const s1 = Number(editStopTh)
+          if (Number.isFinite(s0) && s0 > 0) cfg.startThreshold = s0
+          if (Number.isFinite(s1) && s1 >= 0) cfg.stopThreshold = s1
+        }
+        if (editType === 'charttable' || editType === 'linechart') {
       cfg.mode = editMode
       if (editMode === 'bar') {
         cfg.barMode = editBarMode
@@ -325,6 +351,7 @@
           <button class="primary" onclick={() => addWidget('linechart')}>+ Linechart</button>
           <button class="primary" onclick={() => addWidget('charttable')}>+ Leistung & Tabelle</button>
           <button class="primary" onclick={() => addWidget('stat')}>+ Statistik</button>
+          <button class="primary" onclick={() => addWidget('usage')}>+ Nutzungsanalyse</button>
           <button class="primary" onclick={() => addWidget('table')}>+ Tabelle</button>
           <button class="primary" style="margin-left:auto" onclick={saveLayouts}>💾 Layout speichern</button>
         </div>
@@ -350,10 +377,11 @@
               </div>
               <div class="item-body">
                 <WidgetBody
-                  widget={w}
-                  responses={data[w.id] || []}
-                  consumption={consults[w.id] || null}
-                  height={0}
+                                  widget={w}
+                                  responses={data[w.id] || []}
+                                  consumption={consults[w.id] || null}
+                                  usage={usage[w.id] || null}
+                                  height={0}
                   editable
                   onAddSignal={() => openSettings(w)}
                   onRemoveSignal={(sigId) => removeSignalFromWidget(w.id, sigId)}
@@ -371,7 +399,7 @@
             style="grid-column: span {Math.min(12, Math.max(w.grid?.w || 6, 2))}"
           >
             <div class="widget-title">{defaultTitle(w)}</div>
-            <WidgetBody widget={w} responses={data[w.id] || []} consumption={consults[w.id] || null} height={260} />
+            <WidgetBody widget={w} responses={data[w.id] || []} consumption={consults[w.id] || null} usage={usage[w.id] || null} height={260} />
           </div>
         {/each}
         {#if widgets.length === 0}
@@ -412,7 +440,15 @@
           {/each}
         {/if}
       </div>
-      {#if editType === 'charttable' || editType === 'linechart'}
+      {#if editType === 'usage'}
+      <label class="lbl">Startschwelle (W)</label>
+      <input type="number" bind:value={editStartTh} min="0" step="1" style="width:140px" />
+      <p class="muted small" style="margin-top:4px">Gerät gilt als aktiv, sobald die Summe der Sensoren ≥ {editStartTh} W ist.</p>
+      <label class="lbl">Unterschwelle (W)</label>
+      <input type="number" bind:value={editStopTh} min="0" step="1" style="width:140px" />
+      <p class="muted small" style="margin-top:4px">Aktiv bleibt, bis die Summe ≤ {editStopTh} W fällt (muss &lt; Startschwelle sein).</p>
+    {/if}
+    {#if editType === 'charttable' || editType === 'linechart'}
         <label class="lbl">Anzeige</label>
         <div class="row">
           <label class="seg"><input type="radio" bind:group={editMode} value="line" /> Linien (Verlauf + Statistik)</label>

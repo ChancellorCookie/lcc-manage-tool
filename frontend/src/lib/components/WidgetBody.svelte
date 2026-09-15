@@ -3,9 +3,10 @@
   import SignalTable from './SignalTable.svelte'
   import BarChart from './BarChart.svelte'
   import ConsumptionTable from './ConsumptionTable.svelte'
-  import { COLORS } from '../colors.js'
+    import UsageView from './UsageView.svelte'
+    import { COLORS } from '../colors.js'
 
-  let { widget, responses = [], consumption = null, height = 0, editable = false, onAddSignal = null, onRemoveSignal = null } = $props()
+    let { widget, responses = [], consumption = null, usage = null, height = 0, editable = false, onAddSignal = null, onRemoveSignal = null } = $props()
 
   const fmt = (v) => (v === null || v === undefined || Number.isNaN(v)) ? '—' : Number(v).toFixed(1)
   const fmtWh = (v) => {
@@ -94,6 +95,8 @@
   {:else}
     <div class="hint">Keine Signale zugewiesen — im Editor bearbeiten (⚙)</div>
   {/if}
+{:else if widget.type === 'usage'}
+  <UsageView data={usage} thresholds={{ start: widget.config?.startThreshold ?? 10, stop: widget.config?.stopThreshold ?? 5 }}></UsageView>
 {:else if widget.type === 'table'}
   <SignalTable {responses} {editable} {onAddSignal} {onRemoveSignal} />
 {/if}
